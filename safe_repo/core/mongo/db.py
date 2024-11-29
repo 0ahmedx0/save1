@@ -101,3 +101,13 @@ async def remove_channel(user_id):
 async def delete_session(user_id):
     """Delete the session associated with the given user_id from the database."""
     await db.update_one({"_id": user_id}, {"$unset": {"session": ""}})
+
+async def get_session(user_id):
+    """
+    Retrieve the session string for a specific user.
+    """
+    data = await get_data(user_id)  # استدعاء الدالة get_data للبحث عن بيانات المستخدم
+    if data and "session" in data:
+        return data["session"]
+    return None
+
