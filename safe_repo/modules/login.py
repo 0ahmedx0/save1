@@ -96,24 +96,23 @@ async def generate_session(_, message):
 from pyrogram import filters, Client
 from safe_repo import app
 from safe_repo.core.mongo import db
+from pyrogram import Client
 
 @app.on_message(filters.command("add_session"))
 async def add_session(_, message):
     user_id = message.chat.id
 
-    # طلب Session String من المستخدم
     await message.reply("📩 أرسل لي Session String الخاص بك لاستخدامه في تسجيل الدخول:")
 
     try:
-        # استقبال النص باستخدام listen بدون تمرير filters
+        # استقبال النص من المستخدم
         session_msg = await _.listen(user_id, timeout=600)
         session_string = session_msg.text.strip()
 
-        # إنشاء عميل باستخدام Session String
-        client = Client(session_string)
+        # استخدام اسم قصير للملف
+        client = Client("short_session", session_string=session_string)
         await client.start()
 
-        # التحقق من صحة الجلسة
         me = await client.get_me()
         await message.reply(f"✅ تم تسجيل الدخول بنجاح!\nالمستخدم: {me.first_name} (ID: {me.id})")
 
@@ -123,6 +122,7 @@ async def add_session(_, message):
 
     except Exception as e:
         await message.reply(f"❌ حدث خطأ أثناء تسجيل الدخول باستخدام Session String:\n{e}")
+
 
 @app.on_message(filters.command("check_session"))
 async def check_session(_, message):
