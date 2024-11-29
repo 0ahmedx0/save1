@@ -1,110 +1,110 @@
-from pyrogram import filters, Client
-from safe_repo import app
-from pyromod import listen
-import os
-from safe_repo.core.mongo import db
-from safe_repo.core.func import subscribe
-from config import API_ID as api_id, API_HASH as api_hash
-from pyrogram.errors import (
-    ApiIdInvalid,
-    PhoneNumberInvalid,
-    PhoneCodeInvalid,
-    PhoneCodeExpired,
-    SessionPasswordNeeded,
-    PasswordHashInvalid,
-    FloodWait
-)
+#safe_repo
+
+from config import MONGO_DB
+from motor.motor_asyncio import AsyncIOMotorClient as MongoCli
+
+mongo = MongoCli(MONGO_DB)
+db = mongo.user_data
+db = db.users_data_db
 
 
-async def delete_session_files(user_id):
-    session_file = f"session_{user_id}.session"
-    memory_file = f"session_{user_id}.session-journal"
 
-    if os.path.exists(session_file):
-        os.remove(session_file)
-    
-    if os.path.exists(memory_file):
-        os.remove(memory_file)
-
-    # حذف الجلسة من قاعدة البيانات
-    await db.delete_session(user_id)
+async def get_data(user_id):
+    x = await db.find_one({"_id": user_id})
+    return x
 
 
-@app.on_message(filters.command("logout"))
-async def clear_db(client, message):
-    user_id = message.chat.id
-    await delete_session_files(user_id)
-    await message.reply("✅ تم حذف بيانات الجلسة الخاصة بك من الذاكرة والقرص.")
+async def set_thumbnail(user_id, thumb):
+    data = await get_data(user_id)
+    if data and data.get("_id"):
+        await db.update_one({"_id": user_id}, {"$set": {"thumb": thumb}})
+    else:
+        await db.insert_one({"_id": user_id, "thumb": thumb})
 
 
-@app.on_message(filters.command("login"))
-async def generate_session(_, message):
-    user_id = message.chat.id
-    
-    # التحقق من الجلسة المحفوظة في قاعدة البيانات
-    session_string = await db.get_session(user_id)
-    if session_string:
-        try:
-            client = Client(session_string=session_string)
-            await client.start()
-            me = await client.get_me()
-            await client.stop()
-            await message.reply(f"✅ لديك جلسة صالحة بالفعل.\nالمستخدم: {me.first_name} (ID: {me.id})")
-            return
-        except Exception as e:
-            await message.reply(f"⚠️ الجلسة المحفوظة غير صالحة أو انتهت صلاحيتها:\n{e}")
-            # إذا كانت الجلسة غير صالحة، احذفها من قاعدة البيانات
-            await db.delete_session(user_id)
+async def set_caption(user_id, caption):
+    data = await get_data(user_id)
+    if data and data.get("_id"):
+        await db.update_one({"_id": user_id}, {"$set": {"caption": caption}})
+    else:
+        await db.insert_one({"_id": user_id, "caption": caption})
 
-    # إذا لم تكن هناك جلسة محفوظة أو كانت غير صالحة، متابعة عملية تسجيل الدخول
-    joined = await subscribe(_, message)
-    if joined == 1:
-        return
 
-    number = await _.ask(user_id, '📱 أدخل رقم هاتفك مع رمز الدولة:\nمثال: +19876543210', filters=filters.text)   
-    phone_number = number.text
-    try:
-        await message.reply("📲 جارٍ إرسال رمز التحقق (OTP)...")
-        client = Client(f"session_{user_id}", api_id, api_hash)
-        await client.connect()
-    except Exception as e:
-        await message.reply(f"❌ فشل إرسال رمز التحقق: {e}. حاول مرة أخرى لاحقًا.")
-        return
+async def replace_caption(user_id, replace_txt, to_replace):
+    data = await get_data(user_id)
+    if data and data.get("_id"):
+        await db.update_one({"_id": user_id}, {"$set": {"replace_txt": replace_txt, "to_replace": to_replace}})
+    else:
+        await db.insert_one({"_id": user_id, "replace_txt": replace_txt, "to_replace": to_replace})
 
-    try:
-        code = await client.send_code(phone_number)
-    except ApiIdInvalid:
-        await message.reply('❌ API ID أو API HASH غير صحيحين. أعد المحاولة.')
-        return
-    except PhoneNumberInvalid:
-        await message.reply('❌ رقم الهاتف غير صحيح. أعد المحاولة.')
-        return
 
-    try:
-        otp_code = await _.ask(user_id, "📥 أدخل رمز OTP الذي وصلك (بدون مسافات):", filters=filters.text, timeout=600)
-    except TimeoutError:
-        await message.reply('⏰ انتهت المهلة. أعد المحاولة.')
-        return
+async def set_session(user_id, session):
+    data = await get_data(user_id)
+    if data and data.get("_id"):
+        await db.update_one({"_id": user_id}, {"$set": {"session": session}})
+    else:
+        await db.insert_one({"_id": user_id, "session": session})
 
-    phone_code = otp_code.text.replace(" ", "")
-    try:
-        await client.sign_in(phone_number, code.phone_code_hash, phone_code)
-    except PhoneCodeInvalid:
-        await message.reply('❌ رمز OTP غير صحيح. أعد المحاولة.')
-        return
-    except PhoneCodeExpired:
-        await message.reply('❌ رمز OTP منتهي. أعد المحاولة.')
-        return
-    except SessionPasswordNeeded:
-        try:
-            two_step_msg = await _.ask(user_id, '🔒 حسابك يحتوي على تحقق بخطوتين. أدخل كلمة المرور:', filters=filters.text, timeout=300)
-            password = two_step_msg.text
-            await client.check_password(password=password)
-        except PasswordHashInvalid:
-            await message.reply('❌ كلمة المرور غير صحيحة. أعد المحاولة.')
-            return
 
-    string_session = await client.export_session_string()
-    await db.set_session(user_id, string_session)
-    await client.disconnect()
-    await otp_code.reply("✅ تسجيل الدخول ناجح!")
+
+async def clean_words(user_id, new_clean_words):
+    data = await get_data(user_id)
+    if data and data.get("_id"):
+        existing_words = data.get("clean_words", [])
+        # Ensure existing_words is a list
+        if existing_words is None:
+            existing_words = []
+        updated_words = list(set(existing_words + new_clean_words))
+        await db.update_one({"_id": user_id}, {"$set": {"clean_words": updated_words}})
+    else:
+        await db.insert_one({"_id": user_id, "clean_words": new_clean_words})
+
+
+async def remove_clean_words(user_id, words_to_remove):
+    data = await get_data(user_id)
+    if data and data.get("_id"):
+        existing_words = data.get("clean_words", [])
+        updated_words = [word for word in existing_words if word not in words_to_remove]
+        await db.update_one({"_id": user_id}, {"$set": {"clean_words": updated_words}})
+    else:
+        await db.insert_one({"_id": user_id, "clean_words": []})
+
+
+async def set_channel(user_id, chat_id):
+    data = await get_data(user_id)
+    if data and data.get("_id"):
+        await db.update_one({"_id": user_id}, {"$set": {"chat_id": chat_id}})
+    else:
+        await db.insert_one({"_id": user_id, "chat_id": chat_id})
+
+
+
+async def all_words_remove(user_id):
+    await db.update_one({"_id": user_id}, {"$set": {"clean_words": None}})
+
+async def remove_thumbnail(user_id):
+    await db.update_one({"_id": user_id}, {"$set": {"thumb": None}})
+
+async def remove_caption(user_id):
+    await db.update_one({"_id": user_id}, {"$set": {"caption": None}})
+
+async def remove_replace(user_id):
+    await db.update_one({"_id": user_id}, {"$set": {"replace_txt": None, "to_replace": None}})
+
+async def remove_session(user_id):
+    await db.update_one({"_id": user_id}, {"$set": {"session": None}})
+
+async def remove_channel(user_id):
+    await db.update_one({"_id": user_id}, {"$set": {"chat_id": None}})
+
+async def delete_session(user_id):
+    """Delete the session associated with the given user_id from the database."""
+    await db.update_one({"_id": user_id}, {"$unset": {"session": ""}})
+async def get_session(user_id):
+    """
+    Retrieve the session string for a specific user.
+    """
+    data = await get_data(user_id)  # استدعاء الدالة get_data للبحث عن بيانات المستخدم
+    if data and "session" in data:
+        return data["session"]
+    return None
