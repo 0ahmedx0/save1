@@ -108,3 +108,54 @@ async def generate_session(_, message):
     await db.set_session(user_id, string_session)
     await client.disconnect()
     await otp_code.reply("✅ تسجيل الدخول ناجح!")
+
+from pyrogram import filters, Client
+from safe_repo import app
+from safe_repo.core.mongo import db
+from pyrogram import Client
+
+@app.on_message(filters.command("add_session"))
+async def add_session(_, message):
+    user_id = message.chat.id
+
+    await message.reply("📩 أرسل لي Session String الخاص بك لاستخدامه في تسجيل الدخول:")
+
+    try:
+        # استقبال النص من المستخدم
+        session_msg = await _.listen(user_id, timeout=600)
+        session_string = session_msg.text.strip()
+
+        # استخدام اسم قصير للملف
+        client = Client("short_session", session_string=session_string)
+        await client.start()
+
+        me = await client.get_me()
+        await message.reply(f"✅ تم تسجيل الدخول بنجاح!\nالمستخدم: {me.first_name} (ID: {me.id})")
+
+        # حفظ الجلسة في قاعدة البيانات
+        await db.set_session(user_id, session_string)
+        await client.stop()
+
+    except Exception as e:
+        await message.reply(f"❌ حدث خطأ أثناء تسجيل الدخول باستخدام Session String:\n{e}")
+
+
+@app.on_message(filters.command("check_session"))
+async def check_session(_, message):
+    user_id = message.chat.id
+    
+    # استرداد نص الجلسة من قاعدة البيانات
+    session_string = await db.get_session(user_id)
+    if not session_string:
+        await message.reply("⚠️ لا توجد جلسة محفوظة.")
+        return
+
+    try:
+        # التحقق من صحة الجلسة
+        client = Client(session_string)
+        await client.start()
+        me = await client.get_me()
+        await message.reply(f"✅ الجلسة صالحة.\nالمستخدم: {me.first_name} (ID: {me.id})")
+        await client.stop()
+    except Exception as e:
+        await message.reply(f"❌ الجلسة غير صالحة أو انتهت صلاحيتها:\n{e}")
