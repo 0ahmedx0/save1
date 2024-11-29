@@ -97,7 +97,6 @@ from pyrogram import filters, Client
 from safe_repo import app
 from safe_repo.core.mongo import db
 
-# أمر لإضافة جلسة باستخدام نص الجلسة
 @app.on_message(filters.command("add_session"))
 async def add_session(_, message):
     user_id = message.chat.id
@@ -106,8 +105,8 @@ async def add_session(_, message):
     await message.reply("📩 أرسل لي Session String الخاص بك لاستخدامه في تسجيل الدخول:")
 
     try:
-        # انتظار النص
-        session_msg = await _.ask(user_id, "📩 أرسل لي Session String الخاص بك:", filters=filters.text, timeout=600)
+        # استقبال النص باستخدام listen بدون تمرير filters
+        session_msg = await _.listen(user_id, timeout=600)
         session_string = session_msg.text.strip()
 
         # إنشاء عميل باستخدام Session String
