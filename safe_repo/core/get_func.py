@@ -119,8 +119,8 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message):
                 height= metadata['height']
                 duration= metadata['duration']
 
-                if duration <= 300:
-                     thumb_path = await screenshot(file, duration, chatx)
+                if duration <= 200:
+                     
                     safe_repo = await app.send_video(chat_id=sender, video=file, caption=caption, height=height, width=width, duration=duration, thumb=thumb_path, progress=progress_bar, progress_args=('**UPLOADING:**\n', edit, time.time())) 
                     if msg.pinned_message:
                         try:
