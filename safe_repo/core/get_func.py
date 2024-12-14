@@ -101,22 +101,11 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message):
 
             delete_words = load_delete_words(chatx)
             for word in delete_words:
-                original_file_name = original_file_name.replace(word, "")
+      original_file_name = original_file_name.replace(word, "")
             video_file_name = original_file_name + " " + custom_rename_tag    
-        try:
-    if safe_repo_ext.lower() == 'gif':
-        # استخدم `ffmpeg` لتحويل الصورة المتحركة إلى فيديو
-        converted_file = convert_gif_to_video_ffmpeg(file)
-        new_file_name = original_file_name + " " + custom_rename_tag + ".mp4"
-except Exception as e:
-    # معالجة الأخطاء هنا (مثل تسجيل الخطأ، أو تخطي الملف، أو إعلام المستخدم)
-    print(f"خطأ في تحويل GIF: {e}")
-
-else:
-    new_file_name = original_file_name + " " + custom_rename_tag + "." + file_extension
-
-os.rename(file, new_file_name)
-file = new_file_name
+            new_file_name = original_file_name + " " + custom_rename_tag + "." + file_extension
+            os.rename(file, new_file_name)
+            file = new_file_name
 
             # CODES are hidden             
 
