@@ -76,7 +76,6 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message):
                     return
             
             edit = await app.edit_message_text(sender, edit_id, "Trying to Download...")
-            edit = await app.edit_message_text(sender, edit_id, "Trying to Download...")
             file = await userbot.download_media(
                 msg,
                 progress=progress_bar,
@@ -119,9 +118,8 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message):
                 height= metadata['height']
                 duration= metadata['duration']
 
-                if duration <= 200:
-                     
-                    safe_repo = await app.send_video(chat_id=sender, video=file, caption=caption, height=height, width=width, duration=duration, thumb=thumb_path, progress=progress_bar, progress_args=('**UPLOADING:**\n', edit, time.time())) 
+                if duration <= 300:
+                    safe_repo = await app.send_video(chat_id=sender, video=file, caption=caption, height=height, width=width, duration=duration, thumb=None, progress=progress_bar, progress_args=('**UPLOADING:**\n', edit, time.time())) 
                     if msg.pinned_message:
                         try:
                             await safe_repo.pin(both_sides=True)
