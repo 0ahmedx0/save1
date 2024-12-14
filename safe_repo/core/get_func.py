@@ -76,6 +76,7 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message):
                     return
             
             edit = await app.edit_message_text(sender, edit_id, "Trying to Download...")
+            edit = await app.edit_message_text(sender, edit_id, "Trying to Download...")
             file = await userbot.download_media(
                 msg,
                 progress=progress_bar,
@@ -101,7 +102,7 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message):
 
             delete_words = load_delete_words(chatx)
             for word in delete_words:
-      original_file_name = original_file_name.replace(word, "")
+                original_file_name = original_file_name.replace(word, "")
             video_file_name = original_file_name + " " + custom_rename_tag    
             new_file_name = original_file_name + " " + custom_rename_tag + "." + file_extension
             os.rename(file, new_file_name)
