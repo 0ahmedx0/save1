@@ -103,9 +103,16 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message):
             for word in delete_words:
                 original_file_name = original_file_name.replace(word, "")
             video_file_name = original_file_name + " " + custom_rename_tag    
-            new_file_name = original_file_name + " " + custom_rename_tag + "." + file_extension
-            os.rename(file, new_file_name)
-            file = new_file_name
+           # التعديل: تحقق من ما إذا كان الملف صورة متحركة وتحويلها إلى فيديو
+if safe_repo_ext.lower() == 'gif':
+    # استخدام ffmpeg لتحويل الصورة المتحركة إلى فيديو
+    converted_file = convert_gif_to_video_ffmpeg(file)
+    new_file_name = original_file_name + " " + custom_rename_tag + ".mp4"
+else:
+    new_file_name = original_file_name + " " + custom_rename_tag + "." + file_extension
+
+os.rename(file, new_file_name)
+file = new_file_name
 
             # CODES are hidden             
 
@@ -119,7 +126,8 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message):
                 duration= metadata['duration']
 
                 if duration <= 300:
-                    safe_repo = await app.send_video(chat_id=sender, video=file, caption=caption, height=height, width=width, duration=duration, thumb=None, progress=progress_bar, progress_args=('**UPLOADING:**\n', edit, time.time())) 
+                     thumb_path = await screenshot(file, duration, chatx)
+                    safe_repo = await app.send_video(chat_id=sender, video=file, caption=caption, height=height, width=width, duration=duration, thumb=thumb_path, progress=progress_bar, progress_args=('**UPLOADING:**\n', edit, time.time())) 
                     if msg.pinned_message:
                         try:
                             await safe_repo.pin(both_sides=True)
