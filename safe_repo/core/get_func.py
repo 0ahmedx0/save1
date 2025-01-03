@@ -118,10 +118,10 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message):
                 height= metadata['height']
                 duration= metadata['duration']
 
-                if duration <= 10:
+              
                     safe_repo = await app.send_video(chat_id=sender, video=file, caption=caption, height=height, width=width, duration=duration, thumb=None, progress=progress_bar, progress_args=('**UPLOADING:**\n', edit, time.time())) 
                     if msg.pinned_message:
-                        try:
+                       
                             await safe_repo.pin(both_sides=True)
                         except Exception as e:
                             await safe_repo.pin()
