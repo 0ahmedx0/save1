@@ -106,6 +106,10 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message):
             new_file_name = original_file_name + " " + custom_rename_tag + "." + file_extension
             os.rename(file, new_file_name)
             file = new_file_name
+if not new_file_name.endswith(".mp4"):
+    new_file = f"{file}.mp4"
+    os.rename(file, new_file_name)
+    file = new_file_name
 
             # CODES are hidden             
 
@@ -118,7 +122,7 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message):
                 height= metadata['height']
                 duration= metadata['duration']
 
-                if duration <= 300:
+                if duration <= 100:
                     safe_repo = await app.send_video(chat_id=sender, video=file, caption=caption, height=height, width=width, duration=duration, thumb=None, progress=progress_bar, progress_args=('**UPLOADING:**\n', edit, time.time())) 
                     if msg.pinned_message:
                         try:
