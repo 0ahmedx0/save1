@@ -91,7 +91,7 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message):
                         file_extension = 'mp4'
                     else:
                         original_file_name = str(file)[:last_dot_index]
-                        file_extension = safe_repo_ext
+                        file_extension = 'mp4'
                 else:
                     original_file_name = str(file)
                     file_extension = 'mp4'
@@ -118,10 +118,10 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message):
                 height= metadata['height']
                 duration= metadata['duration']
 
-              
+                if duration <= 300:
                     safe_repo = await app.send_video(chat_id=sender, video=file, caption=caption, height=height, width=width, duration=duration, thumb=None, progress=progress_bar, progress_args=('**UPLOADING:**\n', edit, time.time())) 
                     if msg.pinned_message:
-                       
+                        try:
                             await safe_repo.pin(both_sides=True)
                         except Exception as e:
                             await safe_repo.pin()
