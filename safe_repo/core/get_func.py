@@ -1,4 +1,3 @@
-
 #safe_repo
 import tempfile
 import uuid
@@ -325,7 +324,7 @@ async def copy_message_with_chat_id(client, sender, chat_id, message_id):
     target_chat_id = user_chat_ids.get(sender, sender)
 
     try:
-        # Fetch the message using get_msg
+        # Fetch the message using get_message
         msg = await client.get_messages(chat_id, message_id)
 
         # Modify the caption based on user's custom caption preference
@@ -374,25 +373,35 @@ async def copy_message_with_chat_id(client, sender, chat_id, message_id):
         await client.send_message(sender, error_message)
         await client.send_message(sender, f"Make Bot admin in your Channel - {target_chat_id} and restart the process after /cancel")
 
+# -------------- MODIFIED split_video FUNCTION START --------------
 async def split_video(file_path, parts, edit, sender, msg, caption, chatx, target_chat_id, log_group):
     try:
         metadata = video_metadata(file_path)
         duration = metadata['duration']
         split_duration = duration / parts
 
-        temp_dir = tempfile.mkdtemp() # إنشاء مجلد مؤقت
+        temp_dir = tempfile.mkdtemp()
         print(f"DEBUG: المجلد المؤقت: {temp_dir}")
 
-        abs_file_path = os.path.abspath(file_path)  # الحصول على المسار المطلق
-        output_path = os.path.join(temp_dir, os.path.splitext(os.path.basename(file_path))[0])  # اسم الملف الأساسي
+        abs_file_path = os.path.abspath(file_path)
+        output_path = os.path.join(temp_dir, os.path.splitext(os.path.basename(file_path))[0])
         split_files = []
 
         for i in range(parts):
-            unique_id = str(uuid.uuid4())[:8]  # إنشاء مُعرف فريد
-            output_file = f"{output_path}_part{i+1}_{unique_id}.mp4" # أسماء ملفات فريدة في المجلد المؤقت
+            start_time = i * split_duration
+            end_time = (i + 1) * split_duration
+            if i == parts - 1:  # الجزء الأخير يجب أن يصل إلى نهاية الفيديو
+                end_time = duration
+
+            unique_id = str(uuid.uuid4())[:8]
+            output_file = f"{output_path}_part{i+1}_{unique_id}.mp4"
             split_files.append(output_file)
+
+            # **تصحيح أمر FFmpeg هنا لحساب start_time و end_time لكل جزء**
             cmd = [
-                "ffmpeg", "-i", abs_file_path, "-ss", str(start_time), "-to", str(end_time),
+                "ffmpeg", "-i", abs_file_path,
+                "-ss", str(start_time),
+                "-to", str(end_time),
                 "-c:v", "copy", "-c:a", "copy",
                 output_file
             ]
@@ -405,18 +414,18 @@ async def split_video(file_path, parts, edit, sender, msg, caption, chatx, targe
                 )
                 stdout, stderr = await process.communicate()
 
-                if process.returncode != 0:  # تحقق من أخطاء FFmpeg
+                if process.returncode != 0:
                     error_message = f"خطأ في تقسيم الجزء {i+1}:\n\n"
                     if stderr:
                         error_message += f"stderr:\n{stderr.decode()}\n\n"
                     if stdout:
                         error_message += f"stdout:\n{stdout.decode()}"
                     await app.send_message(sender, error_message)
-                    raise Exception(f"فشل تقسيم FFmpeg للجزء {i+1}") # إيقاف العملية
+                    raise Exception(f"فشل تقسيم FFmpeg للجزء {i+1}")
 
             except Exception as split_error:
                 await app.send_message(sender, f"حدث خطأ أثناء تقسيم الفيديو للجزء {i+1}: {split_error}")
-                return  # الخروج مبكرًا عند حدوث خطأ في التقسيم
+                return
 
 
         await edit.edit("جاري رفع أجزاء الفيديو...")
@@ -424,16 +433,16 @@ async def split_video(file_path, parts, edit, sender, msg, caption, chatx, targe
 
         for part_file in split_files:
             try:
-                print(f"DEBUG: رفع الجزء {part_file}") # طباعة المسار قبل الرفع
-                metadata = video_metadata(part_file)
+                print(f"DEBUG: رفع الجزء {part_file}")
+                metadata = video_metadata(part_file) # استخراج البيانات من الجزء المقسم
                 width= metadata['width']
                 height= metadata['height']
                 duration= metadata['duration']
 
                 safe_repo = await app.send_video(
                     chat_id=target_chat_id,
-                    video=part_file,
-                    caption=f"{caption} (Part {split_files.index(part_file) + 1}/{parts})", # Add part number to caption
+                    video=part_file, # رفع الجزء المقسم هنا
+                    caption=f"{caption} (Part {split_files.index(part_file) + 1}/{parts})",
                     supports_streaming=True,
                     height=height,
                     width=width,
@@ -454,22 +463,26 @@ async def split_video(file_path, parts, edit, sender, msg, caption, chatx, targe
                 await safe_repo.copy(log_group)
             except Exception as upload_error:
                 await app.send_message(sender, f"خطأ أثناء رفع الجزء {split_files.index(part_file) + 1}: {upload_error}")
-                continue # Continue to next part even if one fails
+                continue
 
-        # ... (بعد انتهاء الرفع) ...
-        try: # تنظيف المجلد المؤقت
+        await edit.delete()
+
+        # تنظيف الملفات المؤقتة بعد الرفع الناجح
+        try:
+            os.remove(file_path) # حذف الملف الأصلي بعد الرفع الكامل للأجزاء
             for part_file in split_files:
                 os.remove(part_file)
             os.rmdir(temp_dir)
-            print("DEBUG: تم حذف المجلد المؤقت")
+            print("DEBUG: تم حذف المجلد المؤقت والملفات المقسمة")
         except Exception as cleanup_error:
             print(f"DEBUG: خطأ في تنظيف الملفات المؤقتة: {cleanup_error}")
 
-        await edit.delete()
-        os.remove(file_path) # Delete original file after successful split and upload
-        for part_file in split_files: # Delete split parts
-            os.remove(part_file)
         await app.send_message(sender, "تم تقسيم الفيديو ورفعه بنجاح في أجزاء.")
+
+    except Exception as e:
+        await app.send_message(sender, f"حدث خطأ أثناء عملية التقسيم: {e}")
+        return
+# -------------- MODIFIED split_video FUNCTION END --------------
 
 
 # -------------- FFMPEG CODES ---------------
