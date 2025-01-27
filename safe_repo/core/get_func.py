@@ -1,3 +1,4 @@
+--- START OF FILE get_func.py ---
 
 #safe_repo
 
@@ -20,125 +21,65 @@ import cv2
 from telethon import events, Button
 import re
 import tempfile
-import shutil
 
 
 def thumbnail(sender):
     return f'{sender}.jpg' if os.path.exists(f'{sender}.jpg') else None
 
-async def upload_part(app, sender, edit_id, part_file, part_num, total_parts, original_msg, custom_caption_user, delete_words_user, replacements_user, chatx_user, thumb_path_user, log_group_user, user_chat_ids_map):
-    edit_text = f"Uploading Part {part_num}/{total_parts}..."
-    await app.edit_message_text(sender, edit_id, edit_text)
+# Dictionary to store pending video split requests: {user_id: {'file_path': file_path, 'edit_id': edit_id, 'sender': sender, 'msg': msg, 'caption': caption, 'width': width, 'height': height, 'duration': duration, 'thumb_path': thumb_path}}
+pending_video_splits = {}
 
-    metadata = video_metadata(part_file)
-    width = metadata['width']
-    height = metadata['height']
-    duration = metadata['duration']
+async def split_video_ffmpeg(input_file, num_parts, output_dir):
+    """Splits the video into specified number of parts using ffmpeg."""
+    metadata = video_metadata(input_file)
+    duration_total = metadata['duration']
+    split_duration = duration_total / num_parts
 
-    original_caption = original_msg.caption if original_msg.caption else ''
-    final_caption = f"{original_caption}" if custom_caption_user else f"{original_caption}"
-    lines = final_caption.split('\n')
-    processed_lines = []
-    for line in lines:
-        for word in delete_words_user:
-            line = line.replace(word, '')
-        if line.strip():
-            processed_lines.append(line.strip())
-    final_caption = '\n'.join(processed_lines)
-    for word, replace_word in replacements_user.items():
-        final_caption = final_caption.replace(word, replace_word)
-    caption = f"{final_caption}\n\n__**{custom_caption_user}**__" if custom_caption_user else f"{final_caption}"
+    for i in range(num_parts):
+        start_time = i * split_duration
+        output_file = os.path.join(output_dir, f"part{i+1}.mp4") # Assuming mp4 output, adjust if needed
+        command = [
+            "ffmpeg",
+            "-i", input_file,
+            "-ss", str(start_time),
+            "-t", str(split_duration),
+            "-c", "copy",  # Copy codec for faster splitting, re-encode if needed for compatibility
+            output_file
+        ]
+        subprocess.run(command, check=True, capture_output=True) # capture_output=True for error handling in future
 
-    target_chat_id = user_chat_ids_map.get(chatx_user, chatx_user)
-
-    try:
-        safe_repo = await app.send_video(
-            chat_id=target_chat_id,
-            video=part_file,
-            caption=caption,
-            supports_streaming=True,
-            height=height,
-            width=width,
-            duration=duration,
-            thumb=thumb_path_user,
-            progress=progress_bar,
-            progress_args=(
-                f'**__Uploading Part {part_num}/{total_parts}...__**\n',
-                await app.get_messages(sender, edit_id), # Get latest edit message to avoid edit conflict
-                time.time()
-            )
-        )
-        if original_msg.pinned_message:
+async def upload_video_parts(app, sender, edit_id, output_dir, msg, caption, width, height, duration, thumb_path, log_group):
+    """Uploads video parts from the specified directory."""
+    for part_file in sorted(os.listdir(output_dir)): # Sort to ensure parts are uploaded in order
+        if part_file.startswith("part") and part_file.endswith(".mp4"): # Adjust extension if needed
+            part_path = os.path.join(output_dir, part_file)
             try:
-                await safe_repo.pin(both_sides=True)
-            except Exception as e:
-                await safe_repo.pin()
-        await safe_repo.copy(log_group_user)
-    except Exception as e:
-        await app.edit_message_text(sender, edit_id, f"Error uploading part {part_num}: {e}")
-        return False  # Indicate upload failure
-
-    os.remove(part_file)
-    return True # Indicate upload success
-
-
-async def split_and_upload_video(userbot, app, sender, edit_id, file_path, num_parts, msg, chatx, custom_rename_tag_user, custom_caption_user, delete_words_user, replacements_user, thumb_path_user, log_group_user, user_chat_ids_map):
-    temp_dir = tempfile.mkdtemp()
-    output_template = os.path.join(temp_dir, 'part_%03d.mp4')  # Using mp4 as output format for parts
-    file_name_without_ext = os.path.splitext(os.path.basename(file_path))[0]
-    base_name = f"{file_name_without_ext} {custom_rename_tag_user}"
-
-    try:
-        duration_cmd = [
-            'ffprobe',
-            '-v', 'error',
-            '-show_entries', 'format=duration',
-            '-of', 'default=noprint_wrappers=1:nokey=1',
-            file_path
-        ]
-        duration_process = subprocess.Popen(duration_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        stdout, stderr = duration_process.communicate()
-        if stderr:
-            raise Exception(f"FFprobe error: {stderr.decode()}")
-        total_duration = float(stdout.decode().strip())
-        segment_duration = total_duration / num_parts
-
-        split_cmd = [
-            'ffmpeg',
-            '-i', file_path,
-            '-c', 'copy', # Use copy codec for faster splitting, re-encoding if necessary later
-            '-segment_time', str(segment_duration),
-            '-f', 'segment',
-            '-reset_timestamps', '1',
-            output_template
-        ]
-        process = subprocess.Popen(split_cmd, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
-        stdout, stderr = process.communicate()
-        if stderr:
-            raise Exception(f"FFmpeg split error: {stderr.decode()}")
-
-        parts = sorted([os.path.join(temp_dir, f) for f in os.listdir(temp_dir) if f.startswith('part_') and f.endswith('.mp4')])
-
-        all_parts_uploaded = True
-        for i, part_file in enumerate(parts):
-            new_part_name = os.path.join(temp_dir, f"{base_name} part {i+1}.mp4") # Rename parts if needed
-            os.rename(part_file, new_part_name)
-            part_file = new_part_name
-            if not await upload_part(app, sender, edit_id, part_file, i + 1, len(parts), msg, custom_caption_user, delete_words_user, replacements_user, chatx, thumb_path_user, log_group_user, user_chat_ids_map):
-                all_parts_uploaded = False # Indicate if any part upload failed
-                break # Stop uploading further parts if one fails
-
-        if all_parts_uploaded:
-            await app.edit_message_text(sender, edit_id, "**__Parts Uploaded Successfully!__**")
-        else:
-            await app.edit_message_text(sender, edit_id, "**__Some parts failed to upload.__**")
-
-
-    except Exception as e:
-        await app.edit_message_text(sender, edit_id, f"Error splitting video: {e}")
-    finally:
-        shutil.rmtree(temp_dir) # Cleanup temp directory
-
+                safe_repo = await app.send_video(
+                    chat_id=sender,
+                    video=part_path,
+                    caption=f"{caption} \n\n **{part_file}**", # Add part name to caption
+                    supports_streaming=True,
+                    height=height,
+                    width=width,
+                    duration=duration, # Duration of each part might not be accurate, can calculate if needed
+                    thumb=thumb_path,
+                    progress=progress_bar,
+                    progress_args=(
+                    f'**__Uploading {part_file}...__**\n',
+                    edit_id, # Pass edit_id instead of edit object
+                    time.time()
+                    )
+                   )
+                if msg.pinned_message:
+                    try:
+                        await safe_repo.pin(both_sides=True)
+                    except Exception as e:
+                        await safe_repo.pin()
+                await safe_repo.copy(log_group)
+            except:
+                await app.edit_message_text(sender, edit_id, f"Error uploading {part_file}. Bot might not be admin in the chat...")
+            finally:
+                os.remove(part_path) # Clean up part file after upload
 
 async def get_msg(userbot, sender, edit_id, msg_link, i, message):
     edit = ""
@@ -148,12 +89,6 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message):
         msg_link = msg_link.split("?single")[0]
     msg_id = int(msg_link.split("/")[-1]) + int(i)
 
-    num_parts = None
-    if " /sp " in msg_link: # Check for split command in link
-        parts_match = re.search(r' /sp (\d+)', msg_link)
-        if parts_match:
-            num_parts = int(parts_match.group(1))
-            msg_link = msg_link.split(" /sp ")[0] # Remove the split command from link
 
     if 't.me/c/' in msg_link or 't.me/b/' in msg_link:
         if 't.me/b/' not in msg_link:
@@ -240,18 +175,7 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message):
                 height= metadata['height']
                 duration= metadata['duration']
 
-                if num_parts is not None and duration > 300: # Check for split command and duration
-                    custom_caption_user = get_user_caption_preference(sender)
-                    delete_words_user = load_delete_words(sender)
-                    replacements_user = load_replacement_words(sender)
-                    thumb_path_user = await screenshot(file, duration, chatx)
-                    await split_and_upload_video(userbot, app, sender, edit_id, file, num_parts, msg, chatx, custom_rename_tag, custom_caption_user, delete_words_user, replacements_user, thumb_path_user, LOG_GROUP, user_chat_ids)
-                    os.remove(file) # Remove full file after parts are processed
-                    await edit.delete()
-                    return
-
-
-                if duration <= 300:
+                if duration <= 300: # Original condition, upload directly if short video
                     safe_repo = await app.send_video(chat_id=sender, video=file, caption=caption, height=height, width=width, duration=duration, thumb=None, progress=progress_bar, progress_args=('**UPLOADING:**\n', edit, time.time()))
                     if msg.pinned_message:
                         try:
@@ -260,55 +184,25 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message):
                             await safe_repo.pin()
                     await safe_repo.copy(LOG_GROUP)
                     await edit.delete()
+                    os.remove(file) # Remove file after direct upload
                     return
 
-                delete_words = load_delete_words(sender)
-                custom_caption = get_user_caption_preference(sender)
-                original_caption = msg.caption if msg.caption else ''
-                final_caption = f"{original_caption}" if custom_caption else f"{original_caption}"
-                lines = final_caption.split('\n')
-                processed_lines = []
-                for line in lines:
-                    for word in delete_words:
-                        line = line.replace(word, '')
-                    if line.strip():
-                        processed_lines.append(line.strip())
-                final_caption = '\n'.join(processed_lines)
-                replacements = load_replacement_words(sender)
-                for word, replace_word in replacements.items():
-                    final_caption = final_caption.replace(word, replace_word)
-                caption = f"{final_caption}\n\n__**{custom_caption}**__" if custom_caption else f"{final_caption}"
-
-                target_chat_id = user_chat_ids.get(chatx, chatx)
-
-                thumb_path = await screenshot(file, duration, chatx)
-                try:
-                    safe_repo = await app.send_video(
-                        chat_id=target_chat_id,
-                        video=file,
-                        caption=caption,
-                        supports_streaming=True,
-                        height=height,
-                        width=width,
-                        duration=duration,
-                        thumb=thumb_path,
-                        progress=progress_bar,
-                        progress_args=(
-                        '**__Uploading...__**\n',
-                        edit,
-                        time.time()
-                        )
-                       )
-                    if msg.pinned_message:
-                        try:
-                            await safe_repo.pin(both_sides=True)
-                        except Exception as e:
-                            await safe_repo.pin()
-                    await safe_repo.copy(LOG_GROUP)
-                except:
-                    await app.edit_message_text(sender, edit_id, "The bot is not an admin in the specified chat...")
-
-                os.remove(file)
+                # Ask user for split parts for longer videos
+                pending_video_splits[sender] = {
+                    'file_path': file,
+                    'edit_id': edit_id,
+                    'sender': sender,
+                    'msg': msg,
+                    'caption': caption,
+                    'width': width,
+                    'height': height,
+                    'duration': duration,
+                    'thumb_path': await screenshot(file, duration, chatx), # Generate thumb here and store
+                    'log_group': LOG_GROUP,
+                    'chatx': chatx
+                }
+                await app.edit_message_text(sender, edit_id, "Video is longer than 5 minutes. How many parts do you want to split it into? (Reply with a number)")
+                return # Stop processing here, wait for user reply in handle_split_reply
 
             elif msg.media == MessageMediaType.PHOTO:
                 await edit.edit("**`Uploading photo...`")
@@ -606,6 +500,8 @@ async def settings_command(event):
     )
 
 pending_photos = {}
+pending_split_reply = {} # To handle user reply for split parts
+
 
 @gf.on(events.CallbackQuery)
 async def callback_query_handler(event):
@@ -681,6 +577,50 @@ async def save_thumbnail(event):
     # Remove user from pending photos dictionary in both cases
     pending_photos.pop(user_id, None)
 
+@gf.on(events.NewMessage(func=lambda e: e.sender_id in pending_video_splits))
+async def handle_split_reply(event):
+    user_id = event.sender_id
+    if not event.reply_to_msg_id: # Ensure it's a direct reply to the bot's question
+        return
+
+    if event.reply_to_msg_id:
+        try:
+            num_parts = int(event.text)
+            if num_parts <= 0:
+                await event.respond("Please enter a positive number of parts.")
+                return
+
+            split_data = pending_video_splits.pop(user_id) # Get the stored data and remove from pending
+            file_path = split_data['file_path']
+            edit_id = split_data['edit_id']
+            sender = split_data['sender']
+            msg = split_data['msg']
+            caption = split_data['caption']
+            width = split_data['width']
+            height = split_data['height']
+            duration = split_data['duration']
+            thumb_path = split_data['thumb_path']
+            log_group = split_data['log_group']
+            chatx = split_data['chatx']
+
+            await app.edit_message_text(sender, edit_id, f"Splitting video into {num_parts} parts...")
+            temp_dir = tempfile.TemporaryDirectory() # Create temp dir for parts
+            try:
+                await split_video_ffmpeg(file_path, num_parts, temp_dir.name)
+                await app.edit_message_text(sender, edit_id, "Uploading video parts...")
+                await upload_video_parts(app, sender, edit_id, temp_dir.name, msg, caption, width, height, duration, thumb_path, log_group)
+                await app.edit_message_text(sender, edit_id, "Video parts uploaded successfully!")
+            except Exception as split_err:
+                await app.edit_message_text(sender, edit_id, f"Error splitting or uploading video parts: {split_err}")
+            finally:
+                temp_dir.cleanup() # Cleanup temp directory
+                os.remove(file_path) # Remove original file
+
+        except ValueError:
+            await event.respond("Invalid number of parts. Please reply with a number.")
+        except KeyError:
+            pass # Ignore if no pending split request for this user (might be timed out or cancelled)
+
 
 @gf.on(events.NewMessage)
 async def handle_user_input(event):
@@ -743,4 +683,3 @@ async def handle_user_input(event):
             await event.respond(f"Words added to delete list: {', '.join(words_to_delete)}")
 
         del sessions[user_id]
-
