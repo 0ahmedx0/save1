@@ -132,7 +132,6 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message):
                     await edit.delete()
                 except Exception as e:
                     await app.send_message(sender, f"❌ حدث خطأ أثناء رفع الفيديو: {e}")
-
 async def ask_for_split(chat_id, file, duration):
     """
     وظيفة لسؤال المستخدم عما إذا كان يريد تقسيم الفيديو
@@ -156,11 +155,11 @@ async def ask_for_split(chat_id, file, duration):
             await split_video(file, num_parts, duration, chat_id)  # تقسيم الفيديو
             return True
         return False
+
     except Exception as e:
         print(f"Error in asking for split: {e}")
         return False
-
-
+        
 @gf.on(events.NewMessage(pattern=r"^/sp (\d+)$"))
 async def handle_split_request(event):
     """
