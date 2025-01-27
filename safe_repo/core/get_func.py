@@ -1,4 +1,5 @@
 
+
 #safe_repo
 
 import asyncio
@@ -6,7 +7,7 @@ import time
 import os
 import subprocess
 import requests
-from safe_repo import app 
+from safe_repo import app
 from safe_repo import sex as gf # Assuming 'sex' is where your Pyrogram 'app' client is defined
 import pymongo
 from pyrogram import filters
@@ -20,13 +21,14 @@ import cv2
 from telethon import events, Button
 import re
 
-# Dictionary to store Futures for pending split requests
-response_futures = {}
-pending_split_requests[sender] = file # Store file path for potential split
-response_futures[sender] = asyncio.Future() # Create a Future for this user
 
 def thumbnail(sender):
     return f'{sender}.jpg' if os.path.exists(f'{sender}.jpg') else None
+
+# Global dictionaries to store split-related data
+pending_split_requests = {}
+split_part_counts = {}
+response_futures = {}
 
 
 # Pyrogram Message Handler for /sp command replies
@@ -132,7 +134,9 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message):
 
             await edit.edit('File downloaded, processing...')
             split_message = await app.send_message(sender, "Do you want to split this video? Send `/sp <number_of_parts>` as a reply to this message within 5 seconds to split, otherwise it will be uploaded as a single file.")
-           
+            pending_split_requests[sender] = file # Store file path for potential split # **MOVED BACK INSIDE get_msg**
+            response_futures[sender] = asyncio.Future() # Create a Future for this user
+
             try:
                 parts = await asyncio.wait_for(response_futures[sender], timeout=5.0) # Wait for the Future to get a result with timeout
                 if parts and isinstance(parts, int) and parts > 1:
