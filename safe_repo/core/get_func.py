@@ -1,23 +1,14 @@
-#safe_repo
-
 import asyncio
-import time
 import os
-import subprocess
-import requests
-from safe_repo import app
-from safe_repo import sex as gf
-import pymongo
-from pyrogram import filters
-from pyrogram.errors import ChannelBanned, ChannelInvalid, ChannelPrivate, ChatIdInvalid, ChatInvalid, PeerIdInvalid
+import time
 from pyrogram.enums import MessageMediaType
+from safe_repo import app, sex as gf
 from safe_repo.core.func import progress_bar, video_metadata, screenshot
 from safe_repo.core.mongo import db
 from pyrogram.types import Message
-from config import MONGO_DB as MONGODB_CONNECTION_STRING, LOG_GROUP
-import cv2
-from telethon import events, Button
-    
+from config import LOG_GROUP
+from telethon import events
+import ffmpeg
 
 # قاموس لتخزين طلبات تقسيم الفيديو مؤقتًا
 pending_splits = {}
@@ -37,7 +28,7 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message):
         if 't.me/b/' not in msg_link:
             chat = int('-100' + str(msg_link.split("/")[-2]))
         else:
-            chat = msg_link.split("/")[-2]       
+            chat = msg_link.split("/")[-2]
         file = ""
         try:
             chatx = message.chat.id
@@ -47,7 +38,7 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message):
             if msg.service is not None:
                 return None 
             if msg.empty is not None:
-                return None                          
+                return None                           
             if msg.media:
                 if msg.media == MessageMediaType.WEB_PAGE:
                     target_chat_id = user_chat_ids.get(chatx, chatx)
@@ -79,7 +70,8 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message):
             file = await userbot.download_media(
                 msg,
                 progress=progress_bar,
-                progress_args=("**__Downloading: __**\n",edit,time.time()))
+                progress_args=("**__Downloading: __**\n", edit, time.time())
+            )
 
             custom_rename_tag = get_user_rename_preference(chatx)
             last_dot_index = str(file).rfind('.')
@@ -231,6 +223,7 @@ async def split_video(file, num_parts, duration, chat_id):
         os.remove(file)  # حذف الفيديو الأصلي بعد التقسيم والإرسال
     except Exception as e:
         await app.send_message(chat_id, f"❌ حدث خطأ أثناء تقسيم الفيديو: {e}")
+
 
                 os.remove(file)
                         
