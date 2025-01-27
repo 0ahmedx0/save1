@@ -1,3 +1,4 @@
+--- START OF FILE get_func.py ---
 
 #safe_repo
 import tempfile
@@ -325,7 +326,7 @@ async def copy_message_with_chat_id(client, sender, chat_id, message_id):
     target_chat_id = user_chat_ids.get(sender, sender)
 
     try:
-        # Fetch the message using get_message
+        # Fetch the message using get_msg
         msg = await client.get_messages(chat_id, message_id)
 
         # Modify the caption based on user's custom caption preference
@@ -425,29 +426,6 @@ async def split_video(file_path, parts, edit, sender, msg, caption, chatx, targe
         for part_file in split_files:
             try:
                 print(f"DEBUG: رفع الجزء {part_file}") # طباعة المسار قبل الرفع
-                # ... (كود رفع كل جزء كما كان سابقًا، مع التأكد من استخدام part_file) ...
-            except Exception as upload_error:
-                # ... (معالجة أخطاء الرفع) ...
-
-        # ... (بعد انتهاء الرفع) ...
-        try: # تنظيف المجلد المؤقت
-            for part_file in split_files:
-                os.remove(part_file)
-            os.rmdir(temp_dir)
-            print("DEBUG: تم حذف المجلد المؤقت")
-        except Exception as cleanup_error:
-            print(f"DEBUG: خطأ في تنظيف الملفات المؤقتة: {cleanup_error}")
-
-        await app.send_message(sender, "تم تقسيم الفيديو ورفعه بنجاح في أجزاء.")
-
-    except Exception as e:
-        await app.send_message(sender, f"حدث خطأ أثناء عملية التقسيم: {e}")
-        return
-        await edit.edit('Uploading video parts...')
-        thumb_path = await screenshot(file_path, duration, chatx) # Use original file for thumb for simplicity
-
-        for part_file in split_files:
-            try: # معالجة الأخطاء عند رفع كل جزء
                 metadata = video_metadata(part_file)
                 width= metadata['width']
                 height= metadata['height']
@@ -475,9 +453,18 @@ async def split_video(file_path, parts, edit, sender, msg, caption, chatx, targe
                     except Exception as e:
                         await safe_repo.pin()
                 await safe_repo.copy(log_group)
-            except Exception as upload_error: # التقاط أي أخطاء أثناء رفع الأجزاء
+            except Exception as upload_error:
                 await app.send_message(sender, f"خطأ أثناء رفع الجزء {split_files.index(part_file) + 1}: {upload_error}")
                 continue # Continue to next part even if one fails
+
+        # ... (بعد انتهاء الرفع) ...
+        try: # تنظيف المجلد المؤقت
+            for part_file in split_files:
+                os.remove(part_file)
+            os.rmdir(temp_dir)
+            print("DEBUG: تم حذف المجلد المؤقت")
+        except Exception as cleanup_error:
+            print(f"DEBUG: خطأ في تنظيف الملفات المؤقتة: {cleanup_error}")
 
         await edit.delete()
         os.remove(file_path) # Delete original file after successful split and upload
