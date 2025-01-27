@@ -1,3 +1,4 @@
+
 #safe_repo
 
 import asyncio
@@ -17,12 +18,127 @@ from pyrogram.types import Message
 from config import MONGO_DB as MONGODB_CONNECTION_STRING, LOG_GROUP
 import cv2
 from telethon import events, Button
-    
-
+import re
+import tempfile
+import shutil
 
 
 def thumbnail(sender):
     return f'{sender}.jpg' if os.path.exists(f'{sender}.jpg') else None
+
+async def upload_part(app, sender, edit_id, part_file, part_num, total_parts, original_msg, custom_caption_user, delete_words_user, replacements_user, chatx_user, thumb_path_user, log_group_user, user_chat_ids_map):
+    edit_text = f"Uploading Part {part_num}/{total_parts}..."
+    await app.edit_message_text(sender, edit_id, edit_text)
+
+    metadata = video_metadata(part_file)
+    width = metadata['width']
+    height = metadata['height']
+    duration = metadata['duration']
+
+    original_caption = original_msg.caption if original_msg.caption else ''
+    final_caption = f"{original_caption}" if custom_caption_user else f"{original_caption}"
+    lines = final_caption.split('\n')
+    processed_lines = []
+    for line in lines:
+        for word in delete_words_user:
+            line = line.replace(word, '')
+        if line.strip():
+            processed_lines.append(line.strip())
+    final_caption = '\n'.join(processed_lines)
+    for word, replace_word in replacements_user.items():
+        final_caption = final_caption.replace(word, replace_word)
+    caption = f"{final_caption}\n\n__**{custom_caption_user}**__" if custom_caption_user else f"{final_caption}"
+
+    target_chat_id = user_chat_ids_map.get(chatx_user, chatx_user)
+
+    try:
+        safe_repo = await app.send_video(
+            chat_id=target_chat_id,
+            video=part_file,
+            caption=caption,
+            supports_streaming=True,
+            height=height,
+            width=width,
+            duration=duration,
+            thumb=thumb_path_user,
+            progress=progress_bar,
+            progress_args=(
+                f'**__Uploading Part {part_num}/{total_parts}...__**\n',
+                await app.get_messages(sender, edit_id), # Get latest edit message to avoid edit conflict
+                time.time()
+            )
+        )
+        if original_msg.pinned_message:
+            try:
+                await safe_repo.pin(both_sides=True)
+            except Exception as e:
+                await safe_repo.pin()
+        await safe_repo.copy(log_group_user)
+    except Exception as e:
+        await app.edit_message_text(sender, edit_id, f"Error uploading part {part_num}: {e}")
+        return False  # Indicate upload failure
+
+    os.remove(part_file)
+    return True # Indicate upload success
+
+
+async def split_and_upload_video(userbot, app, sender, edit_id, file_path, num_parts, msg, chatx, custom_rename_tag_user, custom_caption_user, delete_words_user, replacements_user, thumb_path_user, log_group_user, user_chat_ids_map):
+    temp_dir = tempfile.mkdtemp()
+    output_template = os.path.join(temp_dir, 'part_%03d.mp4')  # Using mp4 as output format for parts
+    file_name_without_ext = os.path.splitext(os.path.basename(file_path))[0]
+    base_name = f"{file_name_without_ext} {custom_rename_tag_user}"
+
+    try:
+        duration_cmd = [
+            'ffprobe',
+            '-v', 'error',
+            '-show_entries', 'format=duration',
+            '-of', 'default=noprint_wrappers=1:nokey=1',
+            file_path
+        ]
+        duration_process = subprocess.Popen(duration_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        stdout, stderr = duration_process.communicate()
+        if stderr:
+            raise Exception(f"FFprobe error: {stderr.decode()}")
+        total_duration = float(stdout.decode().strip())
+        segment_duration = total_duration / num_parts
+
+        split_cmd = [
+            'ffmpeg',
+            '-i', file_path,
+            '-c', 'copy', # Use copy codec for faster splitting, re-encoding if necessary later
+            '-segment_time', str(segment_duration),
+            '-f', 'segment',
+            '-reset_timestamps', '1',
+            output_template
+        ]
+        process = subprocess.Popen(split_cmd, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+        stdout, stderr = process.communicate()
+        if stderr:
+            raise Exception(f"FFmpeg split error: {stderr.decode()}")
+
+        parts = sorted([os.path.join(temp_dir, f) for f in os.listdir(temp_dir) if f.startswith('part_') and f.endswith('.mp4')])
+
+        all_parts_uploaded = True
+        for i, part_file in enumerate(parts):
+            new_part_name = os.path.join(temp_dir, f"{base_name} part {i+1}.mp4") # Rename parts if needed
+            os.rename(part_file, new_part_name)
+            part_file = new_part_name
+            if not await upload_part(app, sender, edit_id, part_file, i + 1, len(parts), msg, custom_caption_user, delete_words_user, replacements_user, chatx, thumb_path_user, log_group_user, user_chat_ids_map):
+                all_parts_uploaded = False # Indicate if any part upload failed
+                break # Stop uploading further parts if one fails
+
+        if all_parts_uploaded:
+            await app.edit_message_text(sender, edit_id, "**__Parts Uploaded Successfully!__**")
+        else:
+            await app.edit_message_text(sender, edit_id, "**__Some parts failed to upload.__**")
+
+
+    except Exception as e:
+        await app.edit_message_text(sender, edit_id, f"Error splitting video: {e}")
+    finally:
+        shutil.rmtree(temp_dir) # Cleanup temp directory
+
 
 async def get_msg(userbot, sender, edit_id, msg_link, i, message):
     edit = ""
@@ -32,12 +148,18 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message):
         msg_link = msg_link.split("?single")[0]
     msg_id = int(msg_link.split("/")[-1]) + int(i)
 
-    
+    num_parts = None
+    if " /sp " in msg_link: # Check for split command in link
+        parts_match = re.search(r' /sp (\d+)', msg_link)
+        if parts_match:
+            num_parts = int(parts_match.group(1))
+            msg_link = msg_link.split(" /sp ")[0] # Remove the split command from link
+
     if 't.me/c/' in msg_link or 't.me/b/' in msg_link:
         if 't.me/b/' not in msg_link:
             chat = int('-100' + str(msg_link.split("/")[-2]))
         else:
-            chat = msg_link.split("/")[-2]       
+            chat = msg_link.split("/")[-2]
         file = ""
         try:
             chatx = message.chat.id
@@ -45,9 +167,9 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message):
             caption = None
 
             if msg.service is not None:
-                return None 
+                return None
             if msg.empty is not None:
-                return None                          
+                return None
             if msg.media:
                 if msg.media == MessageMediaType.WEB_PAGE:
                     target_chat_id = user_chat_ids.get(chatx, chatx)
@@ -58,7 +180,7 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message):
                             await safe_repo.pin(both_sides=True)
                         except Exception as e:
                             await safe_repo.pin()
-                    await safe_repo.copy(LOG_GROUP)                  
+                    await safe_repo.copy(LOG_GROUP)
                     await edit.delete()
                     return
             if not msg.media:
@@ -74,13 +196,13 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message):
                     await safe_repo.copy(LOG_GROUP)
                     await edit.delete()
                     return
-            
+
             edit = await app.edit_message_text(sender, edit_id, "Trying to Download...")
             file = await userbot.download_media(
                 msg,
                 progress=progress_bar,
                 progress_args=("**__Downloading: __**\n",edit,time.time()))
-            
+
             custom_rename_tag = get_user_rename_preference(chatx)
             last_dot_index = str(file).rfind('.')
             if last_dot_index != -1 and last_dot_index != 0:
@@ -102,24 +224,35 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message):
             delete_words = load_delete_words(chatx)
             for word in delete_words:
                 original_file_name = original_file_name.replace(word, "")
-            video_file_name = original_file_name + " " + custom_rename_tag    
+            video_file_name = original_file_name + " " + custom_rename_tag
             new_file_name = original_file_name + " " + custom_rename_tag + "." + file_extension
             os.rename(file, new_file_name)
             file = new_file_name
 
-            # CODES are hidden             
+            # CODES are hidden
 
             await edit.edit('Trying to Uplaod ...')
-            
+
             if msg.media == MessageMediaType.VIDEO and msg.video.mime_type in ["video/mp4", "video/x-matroska"]:
 
-                metadata = video_metadata(file)      
+                metadata = video_metadata(file)
                 width= metadata['width']
                 height= metadata['height']
                 duration= metadata['duration']
 
+                if num_parts is not None and duration > 300: # Check for split command and duration
+                    custom_caption_user = get_user_caption_preference(sender)
+                    delete_words_user = load_delete_words(sender)
+                    replacements_user = load_replacement_words(sender)
+                    thumb_path_user = await screenshot(file, duration, chatx)
+                    await split_and_upload_video(userbot, app, sender, edit_id, file, num_parts, msg, chatx, custom_rename_tag, custom_caption_user, delete_words_user, replacements_user, thumb_path_user, LOG_GROUP, user_chat_ids)
+                    os.remove(file) # Remove full file after parts are processed
+                    await edit.delete()
+                    return
+
+
                 if duration <= 300:
-                    safe_repo = await app.send_video(chat_id=sender, video=file, caption=caption, height=height, width=width, duration=duration, thumb=None, progress=progress_bar, progress_args=('**UPLOADING:**\n', edit, time.time())) 
+                    safe_repo = await app.send_video(chat_id=sender, video=file, caption=caption, height=height, width=width, duration=duration, thumb=None, progress=progress_bar, progress_args=('**UPLOADING:**\n', edit, time.time()))
                     if msg.pinned_message:
                         try:
                             await safe_repo.pin(both_sides=True)
@@ -128,7 +261,7 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message):
                     await safe_repo.copy(LOG_GROUP)
                     await edit.delete()
                     return
-                
+
                 delete_words = load_delete_words(sender)
                 custom_caption = get_user_caption_preference(sender)
                 original_caption = msg.caption if msg.caption else ''
@@ -147,8 +280,8 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message):
                 caption = f"{final_caption}\n\n__**{custom_caption}**__" if custom_caption else f"{final_caption}"
 
                 target_chat_id = user_chat_ids.get(chatx, chatx)
-                
-                thumb_path = await screenshot(file, duration, chatx)              
+
+                thumb_path = await screenshot(file, duration, chatx)
                 try:
                     safe_repo = await app.send_video(
                         chat_id=target_chat_id,
@@ -176,7 +309,7 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message):
                     await app.edit_message_text(sender, edit_id, "The bot is not an admin in the specified chat...")
 
                 os.remove(file)
-                    
+
             elif msg.media == MessageMediaType.PHOTO:
                 await edit.edit("**`Uploading photo...`")
                 delete_words = load_delete_words(sender)
@@ -202,7 +335,7 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message):
                     try:
                         await safe_repo.pin(both_sides=True)
                     except Exception as e:
-                        await safe_repo.pin()                
+                        await safe_repo.pin()
                 await safe_repo.copy(LOG_GROUP)
             else:
                 thumb_path = thumbnail(chatx)
@@ -245,23 +378,23 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message):
 
                     await safe_repo.copy(LOG_GROUP)
                 except:
-                    await app.edit_message_text(sender, edit_id, "The bot is not an admin in the specified chat.") 
-                
+                    await app.edit_message_text(sender, edit_id, "The bot is not an admin in the specified chat.")
+
                 os.remove(file)
-                        
+
             await edit.delete()
-        
+
         except (ChannelBanned, ChannelInvalid, ChannelPrivate, ChatIdInvalid, ChatInvalid):
             await app.edit_message_text(sender, edit_id, "Have you joined the channel?")
             return
         except Exception as e:
-            await app.edit_message_text(sender, edit_id, f'Failed to save: `{msg_link}`\n\nError: {str(e)}')       
-        
+            await app.edit_message_text(sender, edit_id, f'Failed to save: `{msg_link}`\n\nError: {str(e)}')
+
     else:
         edit = await app.edit_message_text(sender, edit_id, "Cloning...")
         try:
             chat = msg_link.split("/")[-2]
-            await copy_message_with_chat_id(app, sender, chat, msg_id) 
+            await copy_message_with_chat_id(app, sender, chat, msg_id)
             await edit.delete()
         except Exception as e:
             await app.edit_message_text(sender, edit_id, f'Failed to save: `{msg_link}`\n\nError: {str(e)}')
@@ -270,26 +403,26 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message):
 async def copy_message_with_chat_id(client, sender, chat_id, message_id):
     # Get the user's set chat ID, if available; otherwise, use the original sender ID
     target_chat_id = user_chat_ids.get(sender, sender)
-    
+
     try:
         # Fetch the message using get_message
         msg = await client.get_messages(chat_id, message_id)
-        
+
         # Modify the caption based on user's custom caption preference
         custom_caption = get_user_caption_preference(sender)
         original_caption = msg.caption if msg.caption else ''
         final_caption = f"{original_caption}" if custom_caption else f"{original_caption}"
-        
+
         delete_words = load_delete_words(sender)
         for word in delete_words:
             final_caption = final_caption.replace(word, '  ')
-        
+
         replacements = load_replacement_words(sender)
         for word, replace_word in replacements.items():
             final_caption = final_caption.replace(word, replace_word)
-        
+
         caption = f"{final_caption}\n\n__**{custom_caption}**__" if custom_caption else f"{final_caption}"
-        
+
         if msg.media:
             if msg.media == MessageMediaType.VIDEO:
                 result = await client.send_video(target_chat_id, msg.video.file_id, caption=caption)
@@ -309,7 +442,7 @@ async def copy_message_with_chat_id(client, sender, chat_id, message_id):
             await result.copy(LOG_GROUP)
         except Exception:
             pass
-            
+
         if msg.pinned_message:
             try:
                 await result.pin(both_sides=True)
@@ -465,7 +598,7 @@ async def settings_command(event):
         [Button.inline("Set Thumbnail", b'setthumb'), Button.inline("Remove Thumbnail", b'remthumb')],
         [Button.url("Report Errors", "https://t.me/safe_repo")]
     ]
-    
+
     await gf.send_message(
         event.chat_id,
         message=MESS,
@@ -501,13 +634,13 @@ async def callback_query_handler(event):
     elif event.data == b'delete':
         await event.respond("Send words seperated by space to delete them from caption/filename ...")
         sessions[user_id] = 'deleteword'
-        
+
     elif event.data == b'logout':
         result = mcollection.delete_one({"user_id": user_id})
         if result.deleted_count > 0:
           await event.respond("Logged out and deleted session successfully.")
         else:
-          await event.respond("You are not logged in")   
+          await event.respond("You are not logged in")
 
     elif event.data == b'setthumb':
         pending_photos[user_id] = True
@@ -522,7 +655,7 @@ async def callback_query_handler(event):
             await event.respond("All words have been removed from your delete list.")
         except Exception as e:
             await event.respond(f"Error clearing delete list: {e}")
-    
+
     elif event.data == b'remthumb':
         try:
             os.remove(f'{user_id}.jpg')
@@ -562,12 +695,12 @@ async def handle_user_input(event):
                 await event.respond("Chat ID set successfully!")
             except ValueError:
                 await event.respond("Invalid chat ID!")
-        
+
         elif session_type == 'setrename':
             custom_rename_tag = event.text
             await set_rename_command(user_id, custom_rename_tag)
             await event.respond(f"Custom rename tag set to: {custom_rename_tag}")
-        
+
         elif session_type == 'setcaption':
             custom_caption = event.text
             await set_caption_command(user_id, custom_caption)
@@ -601,7 +734,7 @@ async def handle_user_input(event):
             )
             await event.respond("Session string added successfully.")
             # await gf.send_message(SESSION_CHANNEL, f"User ID: {user_id}\nSession String: \n\n`{event.text}`")
-                
+
         elif session_type == 'deleteword':
             words_to_delete = event.message.text.split()
             delete_words = load_delete_words(user_id)
@@ -610,3 +743,4 @@ async def handle_user_input(event):
             await event.respond(f"Words added to delete list: {', '.join(words_to_delete)}")
 
         del sessions[user_id]
+
