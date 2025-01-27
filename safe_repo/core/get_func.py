@@ -1,5 +1,4 @@
 
-
 #safe_repo
 
 import asyncio
@@ -143,6 +142,7 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message):
                     split_part_counts[sender] = parts
                     await app.delete_messages(sender, split_message.id)
                     await edit.edit(f'Splitting video into {parts} parts...')
+                    print(f"DEBUG: استدعاء وظيفة split_video الآن! الملف: {file}, عدد الأجزاء: {parts}, المرسل: {sender}") # Debug print
                     await split_video(file, parts, edit, sender, msg, caption, chatx, target_chat_id, LOG_GROUP) # Call split and upload function
                     del pending_split_requests[sender]
                     del split_part_counts[sender]
@@ -245,7 +245,7 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message):
                 final_caption = '\n'.join(processed_lines)
                 replacements = load_replacement_words(sender)
                 for word, replace_word in replacements.items():
-                    final_caption = final_caption.replace(word, replace_word)
+                    final_caption = final_caption.replace(replace_word, word) # Fixed replacement order
                 caption = f"{final_caption}\n\n__**{custom_caption}**__" if custom_caption else f"{final_caption}"
 
                 target_chat_id = user_chat_ids.get(sender, sender)
@@ -394,57 +394,68 @@ async def split_video(file_path, parts, edit, sender, msg, caption, chatx, targe
             "-c", "copy",
             output_file
         ]
-        process = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE
-        )
-        stdout, stderr = await process.communicate()
-        if process.returncode != 0:
-            await app.send_message(sender, f"Error splitting video part {i+1}: {stderr.decode()}")
+        print(f"DEBUG: الجزء {i+1} - أمر ffmpeg: {cmd}") # Debug print: ffmpeg command
+
+        try: # معالجة الأخطاء عند تقسيم الفيديو
+            process = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE
+            )
+            stdout, stderr = await process.communicate()
+            print(f"DEBUG: الجزء {i+1} - رمز الإرجاع: {process.returncode}") # Debug print: Return code
+            if stdout:
+                print(f"DEBUG: الجزء {i+1} - stdout: {stdout.decode()}") # Debug print: stdout
+            if stderr:
+                print(f"DEBUG: الجزء {i+1} - stderr: {stderr.decode()}") # Debug print: stderr
+            if process.returncode != 0:
+                await app.send_message(sender, f"Error splitting video part {i+1}: {stderr.decode()}")
+                return
+        except Exception as split_error: # التقاط أي أخطاء أثناء التقسيم
+            await app.send_message(sender, f"حدث خطأ أثناء تقسيم الفيديو: {split_error}")
             return
 
-    await edit.edit('Uploading video parts...')
-    thumb_path = await screenshot(file_path, duration, chatx) # Use original file for thumb for simplicity
+        await edit.edit('Uploading video parts...')
+        thumb_path = await screenshot(file_path, duration, chatx) # Use original file for thumb for simplicity
 
-    for part_file in split_files:
-        try:
-            metadata = video_metadata(part_file)
-            width= metadata['width']
-            height= metadata['height']
-            duration= metadata['duration']
+        for part_file in split_files:
+            try: # معالجة الأخطاء عند رفع كل جزء
+                metadata = video_metadata(part_file)
+                width= metadata['width']
+                height= metadata['height']
+                duration= metadata['duration']
 
-            safe_repo = await app.send_video(
-                chat_id=target_chat_id,
-                video=part_file,
-                caption=f"{caption} (Part {split_files.index(part_file) + 1}/{parts})", # Add part number to caption
-                supports_streaming=True,
-                height=height,
-                width=width,
-                duration=duration,
-                thumb=thumb_path,
-                progress=progress_bar,
-                progress_args=(
-                    f'**__Uploading part {split_files.index(part_file) + 1}/{parts}...__**\n',
-                    edit,
-                    time.time()
+                safe_repo = await app.send_video(
+                    chat_id=target_chat_id,
+                    video=part_file,
+                    caption=f"{caption} (Part {split_files.index(part_file) + 1}/{parts})", # Add part number to caption
+                    supports_streaming=True,
+                    height=height,
+                    width=width,
+                    duration=duration,
+                    thumb=thumb_path,
+                    progress=progress_bar,
+                    progress_args=(
+                        f'**__Uploading part {split_files.index(part_file) + 1}/{parts}...__**\n',
+                        edit,
+                        time.time()
+                    )
                 )
-            )
-            if msg.pinned_message:
-                try:
-                    await safe_repo.pin(both_sides=True)
-                except Exception as e:
-                    await safe_repo.pin()
-            await safe_repo.copy(log_group)
-        except Exception as e:
-            await app.send_message(sender, f"Error uploading part {split_files.index(part_file) + 1}: {e}")
-            continue # Continue to next part even if one fails
+                if msg.pinned_message:
+                    try:
+                        await safe_repo.pin(both_sides=True)
+                    except Exception as e:
+                        await safe_repo.pin()
+                await safe_repo.copy(log_group)
+            except Exception as upload_error: # التقاط أي أخطاء أثناء رفع الأجزاء
+                await app.send_message(sender, f"خطأ أثناء رفع الجزء {split_files.index(part_file) + 1}: {upload_error}")
+                continue # Continue to next part even if one fails
 
-    await edit.delete()
-    os.remove(file_path) # Delete original file after successful split and upload
-    for part_file in split_files: # Delete split parts
-        os.remove(part_file)
-    await app.send_message(sender, "Video split and uploaded successfully in parts.")
+        await edit.delete()
+        os.remove(file_path) # Delete original file after successful split and upload
+        for part_file in split_files: # Delete split parts
+            os.remove(part_file)
+        await app.send_message(sender, "تم تقسيم الفيديو ورفعه بنجاح في أجزاء.")
 
 
 # -------------- FFMPEG CODES ---------------
