@@ -1,4 +1,3 @@
---- START OF FILE get_func.py ---
 
 #safe_repo
 import tempfile
