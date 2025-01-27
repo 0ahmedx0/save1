@@ -1,4 +1,5 @@
 
+
 #safe_repo
 
 import asyncio
@@ -47,20 +48,32 @@ async def split_video_ffmpeg(input_file, num_parts, output_dir):
         ]
         subprocess.run(command, check=True, capture_output=True) # capture_output=True for error handling in future
 
+        # تحديث بيانات الفيديو بعد التقسيم للحصول على المدة الصحيحة للجزء
+        part_metadata = video_metadata(output_file)
+        part_duration = part_metadata['duration']
+
+        # يمكنك هنا طباعة أو استخدام `part_duration` للتأكد من أنها صحيحة
+
 async def upload_video_parts(app, sender, edit_id, output_dir, msg, caption, width, height, duration, thumb_path, log_group):
     """Uploads video parts from the specified directory."""
     for part_file in sorted(os.listdir(output_dir)): # Sort to ensure parts are uploaded in order
         if part_file.startswith("part") and part_file.endswith(".mp4"): # Adjust extension if needed
             part_path = os.path.join(output_dir, part_file)
             try:
+                # استخراج بيانات الجزء من الفيديو للحصول على المدة الصحيحة
+                part_metadata = video_metadata(part_path)
+                part_duration = part_metadata['duration']
+                part_width = part_metadata['width']  # احصل على العرض والارتفاع للجزء أيضاً إذا لزم الأمر
+                part_height = part_metadata['height']
+
                 safe_repo = await app.send_video(
                     chat_id=sender,
                     video=part_path,
                     caption=f"{caption} \n\n **{part_file}**", # Add part name to caption
                     supports_streaming=True,
-                    height=height,
-                    width=width,
-                    duration=duration, # Duration of each part might not be accurate, can calculate if needed
+                    height=part_height, # استخدم الارتفاع والعرض للجزء
+                    width=part_width,
+                    duration=part_duration, # استخدم المدة الصحيحة للجزء
                     thumb=thumb_path,
                     progress=progress_bar,
                     progress_args=(
@@ -80,7 +93,7 @@ async def upload_video_parts(app, sender, edit_id, output_dir, msg, caption, wid
             finally:
                 os.remove(part_path) # Clean up part file after upload
 
-async def get_msg(userbot, sender, edit_id, msg_link, i, message):
+async def get_msg(userbot, sender, edit_id, msg_link, i, message, is_batch_mode=False): # إضافة الوسيط الجديد is_batch_mode بقيمة افتراضية False
     edit = ""
     chat = ""
     round_message = False
@@ -186,22 +199,55 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message):
                     os.remove(file) # Remove file after direct upload
                     return
 
-                # Ask user for split parts for longer videos
-                pending_video_splits[sender] = {
-                    'file_path': file,
-                    'edit_id': edit_id,
-                    'sender': sender,
-                    'msg': msg,
-                    'caption': caption,
-                    'width': width,
-                    'height': height,
-                    'duration': duration,
-                    'thumb_path': await screenshot(file, duration, chatx), # Generate thumb here and store
-                    'log_group': LOG_GROUP,
-                    'chatx': chatx
-                }
-                await app.edit_message_text(sender, edit_id, "Video is longer than 5 minutes. How many parts do you want to split it into? (Reply with a number)")
-                return # Stop processing here, wait for user reply in handle_split_reply
+                # تعديل الشرط هنا: السؤال عن التقسيم فقط إذا لم يكن في وضع الباتش
+                if not is_batch_mode:
+                    pending_video_splits[sender] = {
+                        'file_path': file,
+                        'edit_id': edit_id,
+                        'sender': sender,
+                        'msg': msg,
+                        'caption': caption,
+                        'width': width,
+                        'height': height,
+                        'duration': duration,
+                        'thumb_path': await screenshot(file, duration, chatx), # Generate thumb here and store
+                        'log_group': LOG_GROUP,
+                        'chatx': chatx
+                    }
+                    await app.edit_message_text(sender, edit_id, "Video is longer than 5 minutes. How many parts do you want to split it into? (Reply with a number)")
+                    return # Stop processing here, wait for user reply in handle_split_reply
+                else: # إذا كان في وضع الباتش، يتم رفعه كجزء واحد تلقائياً
+                    await app.edit_message_text(sender, edit_id, "Video is longer than 5 minutes. Uploading as single part in batch mode...")
+                    # رفع الفيديو كجزء واحد مباشرة في وضع الباتش (يمكنك تعديل هذا الجزء إذا كنت تريد سلوكاً مختلفاً)
+                    thumb_path = await screenshot(file, duration, chatx)
+                    try:
+                        safe_repo = await app.send_video(
+                            chat_id=sender,
+                            video=file,
+                            caption=caption,
+                            supports_streaming=True,
+                            height=height,
+                            width=width,
+                            duration=duration,
+                            thumb=thumb_path,
+                            progress=progress_bar,
+                            progress_args=(
+                            '**__Uploading...__**\n',
+                            edit,
+                            time.time()
+                            )
+                           )
+                        if msg.pinned_message:
+                            try:
+                                await safe_repo.pin(both_sides=True)
+                            except Exception as e:
+                                await safe_repo.pin()
+                        await safe_repo.copy(LOG_GROUP)
+                    except:
+                        await app.edit_message_text(sender, edit_id, "The bot is not an admin in the specified chat...")
+                    os.remove(file)
+                    await edit.delete()
+                    return
 
             elif msg.media == MessageMediaType.PHOTO:
                 await edit.edit("**`Uploading photo...`")
