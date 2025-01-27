@@ -161,6 +161,7 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message):
                 if sender in response_futures:
                     del response_futures[sender] # Ensure Future is removed even on error/timeout
 
+            # **نقل كود رفع الفيديو الكامل إلى هنا، ليتم تنفيذه فقط إذا لم يتم تقسيم الفيديو**
             await edit.edit('Trying to Uplaod ...')
 
             if msg.media == MessageMediaType.VIDEO and msg.video.mime_type in ["video/mp4", "video/x-matroska"]:
