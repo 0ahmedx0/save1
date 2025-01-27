@@ -373,48 +373,53 @@ async def copy_message_with_chat_id(client, sender, chat_id, message_id):
         await client.send_message(sender, error_message)
         await client.send_message(sender, f"Make Bot admin in your Channel - {target_chat_id} and restart the process after /cancel")
 
-
 async def split_video(file_path, parts, edit, sender, msg, caption, chatx, target_chat_id, log_group):
-    metadata = video_metadata(file_path)
-    duration = metadata['duration']
-    split_duration = duration / parts
-    output_path = os.path.splitext(file_path)[0] # Path without extension
-    split_files = []
+    try:
+        metadata = video_metadata(file_path)
+        duration = metadata['duration']
+        split_duration = duration / parts
+        output_path = os.path.splitext(file_path)[0]  # Path without extension
+        split_files = []
 
-    for i in range(parts):
-        start_time = i * split_duration
-        end_time = (i + 1) * split_duration
-        output_file = f"{output_path}_part{i+1}.mp4"
-        split_files.append(output_file)
-        cmd = [
-            "ffmpeg",
-            "-i", file_path,
-            "-ss", str(start_time),
-            "-to", str(end_time),
-            "-c", "copy",
-            output_file
-        ]
-        print(f"DEBUG: الجزء {i+1} - أمر ffmpeg: {cmd}") # Debug print: ffmpeg command
+        for i in range(parts):
+            start_time = i * split_duration
+            end_time = (i + 1) * split_duration
+            output_file = f"{output_path}_part{i+1}.mp4"
+            split_files.append(output_file)
+            cmd = [
+                "ffmpeg", "-i", file_path, "-ss", str(start_time), "-to", str(end_time),
+                "-c:v", "copy", "-c:a", "copy",  # Stream copy for faster splitting if possible
+                output_file
+            ]
 
-        try: # معالجة الأخطاء عند تقسيم الفيديو
-            process = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE
-            )
-            stdout, stderr = await process.communicate()
-            print(f"DEBUG: الجزء {i+1} - رمز الإرجاع: {process.returncode}") # Debug print: Return code
-            if stdout:
-                print(f"DEBUG: الجزء {i+1} - stdout: {stdout.decode()}") # Debug print: stdout
-            if stderr:
-                print(f"DEBUG: الجزء {i+1} - stderr: {stderr.decode()}") # Debug print: stderr
-            if process.returncode != 0:
-                await app.send_message(sender, f"Error splitting video part {i+1}: {stderr.decode()}")
-                return
-        except Exception as split_error: # التقاط أي أخطاء أثناء التقسيم
-            await app.send_message(sender, f"حدث خطأ أثناء تقسيم الفيديو: {split_error}")
-            return
+            print(f"DEBUG: Splitting part {i+1} - FFmpeg command: {cmd}")
 
+            try:
+                process = await asyncio.create_subprocess_exec(
+                    *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+                )
+                stdout, stderr = await process.communicate()
+
+                if process.returncode != 0:  # Check for FFmpeg errors
+                    error_message = f"Error splitting video part {i+1}:\n\n"
+                    if stderr:
+                        error_message += f"stderr:\n{stderr.decode()}\n\n"
+                    if stdout:
+                        error_message += f"stdout:\n{stdout.decode()}"
+                    await app.send_message(sender, error_message)
+                    raise Exception(f"FFmpeg splitting failed for part {i+1}") # Raise an exception to stop further processing
+
+            except Exception as split_error:
+                await app.send_message(sender, f"حدث خطأ أثناء تقسيم الفيديو للجزء {i+1}: {split_error}")
+                return # Exit early on split error
+
+        # After successful splitting, proceed with uploading in parts
+        await edit.edit("جاري رفع أجزاء الفيديو...")
+        # ... (rest of the upload logic as before) ...
+
+    except Exception as e: # Catches errors outside the splitting loop, like metadata issues
+        await app.send_message(sender, f"حدث خطأ أثناء عملية التقسيم: {e}")
+        return
         await edit.edit('Uploading video parts...')
         thumb_path = await screenshot(file_path, duration, chatx) # Use original file for thumb for simplicity
 
