@@ -373,20 +373,24 @@ async def copy_message_with_chat_id(client, sender, chat_id, message_id):
         await client.send_message(sender, error_message)
         await client.send_message(sender, f"Make Bot admin in your Channel - {target_chat_id} and restart the process after /cancel")
 
-# -------------- MODIFIED split_video FUNCTION WITH INTEGRATED UPLOAD START --------------
+# -------------- MODIFIED split_video FUNCTION WITH DOWNLOADS FOLDER START --------------
 async def split_video(file_path, parts, edit, sender, msg, caption, chatx, target_chat_id, log_group):
     try:
         metadata = video_metadata(file_path)
         duration = metadata['duration']
         split_duration = duration / parts
 
-        temp_dir = tempfile.mkdtemp()
-        print(f"DEBUG: المجلد المؤقت: {temp_dir}")
+        downloads_dir = os.path.join(os.getcwd(), "downloads") # مسار مجلد downloads في المستودع الرئيسي
+        if not os.path.exists(downloads_dir): # إنشاء مجلد downloads إذا لم يكن موجودًا
+            os.makedirs(downloads_dir)
+        print(f"DEBUG: مجلد التنزيلات: {downloads_dir}")
 
         abs_file_path = os.path.abspath(file_path)
-        output_path = os.path.join(temp_dir, os.path.splitext(os.path.basename(file_path))[0])
+        output_base_name = os.path.splitext(os.path.basename(file_path))[0] # الاسم الأساسي للملف بدون امتداد
 
         thumb_path = await screenshot(file_path, duration, chatx) # إنشاء الصورة المصغرة مرة واحدة في البداية
+
+        split_files = [] # قائمة لتخزين مسارات الملفات المقسمة
 
         for i in range(parts):
             start_time = i * split_duration
@@ -394,16 +398,17 @@ async def split_video(file_path, parts, edit, sender, msg, caption, chatx, targe
             if i == parts - 1:  # الجزء الأخير يجب أن يصل إلى نهاية الفيديو
                 end_time = duration
 
-            unique_id = str(uuid.uuid4())[:8]
-            part_file = f"{output_path}_part{i+1}_{unique_id}.mp4"
+            part_file_name = f"{output_base_name}_part{i+1}.mp4" # اسم الجزء مع رقم الجزء
+            part_file_path = os.path.join(downloads_dir, part_file_name) # المسار الكامل للجزء في مجلد downloads
+            split_files.append(part_file_path) # إضافة المسار إلى قائمة الملفات المقسمة
 
-            # **تصحيح أمر FFmpeg هنا لحساب start_time و end_time لكل جزء**
+            # **تعديل أمر FFmpeg لحفظ الأجزاء في مجلد downloads بأسماء منهجية**
             cmd = [
                 "ffmpeg", "-i", abs_file_path,
                 "-ss", str(start_time),
                 "-to", str(end_time),
                 "-c:v", "copy", "-c:a", "copy",
-                part_file
+                part_file_path # حفظ الجزء في مجلد downloads
             ]
 
             print(f"DEBUG: تقسيم الجزء {i+1} - أمر FFmpeg: {cmd}")
@@ -429,16 +434,16 @@ async def split_video(file_path, parts, edit, sender, msg, caption, chatx, targe
 
             await edit.edit(f"جاري رفع الجزء {i+1}/{parts}...")
 
-            try: # **بدء رفع الجزء مباشرة بعد التقسيم**
-                print(f"DEBUG: رفع الجزء {part_file}")
-                metadata = video_metadata(part_file) # استخراج البيانات من الجزء المقسم
+            try: # **بدء رفع الجزء مباشرة بعد التقسيم من مجلد downloads**
+                print(f"DEBUG: رفع الجزء {part_file_path}") # استخدام المسار الكامل للجزء
+                metadata = video_metadata(part_file_path) # استخراج البيانات من الجزء المقسم
                 width= metadata['width']
                 height= metadata['height']
                 duration= metadata['duration']
 
                 safe_repo = await app.send_video(
                     chat_id=target_chat_id,
-                    video=part_file, # رفع الجزء المقسم هنا
+                    video=part_file_path, # رفع الجزء من مجلد downloads
                     caption=f"{caption} (Part {i+1}/{parts})", # استخدام i+1 مباشرة لرقم الجزء
                     supports_streaming=True,
                     height=height,
@@ -462,28 +467,28 @@ async def split_video(file_path, parts, edit, sender, msg, caption, chatx, targe
                 await app.send_message(sender, f"خطأ أثناء رفع الجزء {i+1}: {upload_error}")
                 continue # للمتابعة إلى الجزء التالي حتى لو فشل جزء واحد
 
-            try: # **حذف الجزء المؤقت بعد الرفع الناجح**
-                os.remove(part_file)
-                print(f"DEBUG: تم حذف الجزء المؤقت {part_file}")
+            try: # **حذف الجزء المؤقت بعد الرفع الناجح من مجلد downloads**
+                os.remove(part_file_path) # حذف الجزء من مجلد downloads
+                print(f"DEBUG: تم حذف الجزء المؤقت {part_file_path} من مجلد downloads")
             except Exception as delete_error:
-                print(f"DEBUG: خطأ في حذف الجزء المؤقت {part_file}: {delete_error}")
+                print(f"DEBUG: خطأ في حذف الجزء المؤقت {part_file_path} من مجلد downloads: {delete_error}")
 
 
         await edit.delete()
 
-        # تنظيف المجلد المؤقت بعد الرفع الناجح للأجزاء كلها
+        # تنظيف مجلد downloads بعد الرفع الناجح للأجزاء كلها
         try:
-            os.rmdir(temp_dir)
-            print("DEBUG: تم حذف المجلد المؤقت")
+            os.rmdir(downloads_dir) # حذف مجلد downloads بعد الانتهاء
+            print("DEBUG: تم حذف مجلد التنزيلات")
         except Exception as cleanup_error:
-            print(f"DEBUG: خطأ في تنظيف المجلد المؤقت: {cleanup_error}")
+            print(f"DEBUG: خطأ في تنظيف مجلد التنزيلات: {cleanup_error}")
 
         await app.send_message(sender, "تم تقسيم الفيديو ورفعه بنجاح في أجزاء.")
 
     except Exception as e:
         await app.send_message(sender, f"حدث خطأ أثناء عملية التقسيم: {e}")
         return
-# -------------- MODIFIED split_video FUNCTION WITH INTEGRATED UPLOAD END --------------
+# -------------- MODIFIED split_video FUNCTION WITH DOWNLOADS FOLDER END --------------
 
 
 # -------------- FFMPEG CODES ---------------
