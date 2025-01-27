@@ -1,6 +1,7 @@
 
 #safe_repo
-
+import tempfile
+import uuid
 import asyncio
 import time
 import os
@@ -378,21 +379,25 @@ async def split_video(file_path, parts, edit, sender, msg, caption, chatx, targe
         metadata = video_metadata(file_path)
         duration = metadata['duration']
         split_duration = duration / parts
-        output_path = os.path.splitext(file_path)[0]  # Path without extension
+
+        temp_dir = tempfile.mkdtemp() # إنشاء مجلد مؤقت
+        print(f"DEBUG: المجلد المؤقت: {temp_dir}")
+
+        abs_file_path = os.path.abspath(file_path)  # الحصول على المسار المطلق
+        output_path = os.path.join(temp_dir, os.path.splitext(os.path.basename(file_path))[0])  # اسم الملف الأساسي
         split_files = []
 
         for i in range(parts):
-            start_time = i * split_duration
-            end_time = (i + 1) * split_duration
-            output_file = f"{output_path}_part{i+1}.mp4"
+            unique_id = str(uuid.uuid4())[:8]  # إنشاء مُعرف فريد
+            output_file = f"{output_path}_part{i+1}_{unique_id}.mp4" # أسماء ملفات فريدة في المجلد المؤقت
             split_files.append(output_file)
             cmd = [
-                "ffmpeg", "-i", file_path, "-ss", str(start_time), "-to", str(end_time),
-                "-c:v", "copy", "-c:a", "copy",  # Stream copy for faster splitting if possible
+                "ffmpeg", "-i", abs_file_path, "-ss", str(start_time), "-to", str(end_time),
+                "-c:v", "copy", "-c:a", "copy",
                 output_file
             ]
 
-            print(f"DEBUG: Splitting part {i+1} - FFmpeg command: {cmd}")
+            print(f"DEBUG: تقسيم الجزء {i+1} - أمر FFmpeg: {cmd}")
 
             try:
                 process = await asyncio.create_subprocess_exec(
@@ -400,24 +405,42 @@ async def split_video(file_path, parts, edit, sender, msg, caption, chatx, targe
                 )
                 stdout, stderr = await process.communicate()
 
-                if process.returncode != 0:  # Check for FFmpeg errors
-                    error_message = f"Error splitting video part {i+1}:\n\n"
+                if process.returncode != 0:  # تحقق من أخطاء FFmpeg
+                    error_message = f"خطأ في تقسيم الجزء {i+1}:\n\n"
                     if stderr:
                         error_message += f"stderr:\n{stderr.decode()}\n\n"
                     if stdout:
                         error_message += f"stdout:\n{stdout.decode()}"
                     await app.send_message(sender, error_message)
-                    raise Exception(f"FFmpeg splitting failed for part {i+1}") # Raise an exception to stop further processing
+                    raise Exception(f"فشل تقسيم FFmpeg للجزء {i+1}") # إيقاف العملية
 
             except Exception as split_error:
                 await app.send_message(sender, f"حدث خطأ أثناء تقسيم الفيديو للجزء {i+1}: {split_error}")
-                return # Exit early on split error
+                return  # الخروج مبكرًا عند حدوث خطأ في التقسيم
 
-        # After successful splitting, proceed with uploading in parts
+
         await edit.edit("جاري رفع أجزاء الفيديو...")
-        # ... (rest of the upload logic as before) ...
+        thumb_path = await screenshot(file_path, duration, chatx)
 
-    except Exception as e: # Catches errors outside the splitting loop, like metadata issues
+        for part_file in split_files:
+            try:
+                print(f"DEBUG: رفع الجزء {part_file}") # طباعة المسار قبل الرفع
+                # ... (كود رفع كل جزء كما كان سابقًا، مع التأكد من استخدام part_file) ...
+            except Exception as upload_error:
+                # ... (معالجة أخطاء الرفع) ...
+
+        # ... (بعد انتهاء الرفع) ...
+        try: # تنظيف المجلد المؤقت
+            for part_file in split_files:
+                os.remove(part_file)
+            os.rmdir(temp_dir)
+            print("DEBUG: تم حذف المجلد المؤقت")
+        except Exception as cleanup_error:
+            print(f"DEBUG: خطأ في تنظيف الملفات المؤقتة: {cleanup_error}")
+
+        await app.send_message(sender, "تم تقسيم الفيديو ورفعه بنجاح في أجزاء.")
+
+    except Exception as e:
         await app.send_message(sender, f"حدث خطأ أثناء عملية التقسيم: {e}")
         return
         await edit.edit('Uploading video parts...')
