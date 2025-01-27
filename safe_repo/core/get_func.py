@@ -26,6 +26,8 @@ def thumbnail(sender):
 
 # Dictionary to store Futures for pending split requests
 response_futures = {}
+pending_split_requests[sender] = file # Store file path for potential split
+response_futures[sender] = asyncio.Future() # Create a Future for this user
 
 # Pyrogram Message Handler for /sp command replies
 @app.on_message(filters.command("sp") & filters.reply) # Filter for /sp command as reply
@@ -130,9 +132,7 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message):
 
             await edit.edit('File downloaded, processing...')
             split_message = await app.send_message(sender, "Do you want to split this video? Send `/sp <number_of_parts>` as a reply to this message within 5 seconds to split, otherwise it will be uploaded as a single file.")
-            pending_split_requests[sender] = file # Store file path for potential split
-            response_futures[sender] = asyncio.Future() # Create a Future for this user
-
+           
             try:
                 parts = await asyncio.wait_for(response_futures[sender], timeout=5.0) # Wait for the Future to get a result with timeout
                 if parts and isinstance(parts, int) and parts > 1:
