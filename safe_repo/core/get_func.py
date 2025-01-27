@@ -1,3 +1,4 @@
+--- START OF FILE get_func.py ---
 
 #safe_repo
 
@@ -7,7 +8,7 @@ import os
 import subprocess
 import requests
 from safe_repo import app
-from safe_repo import sex as gf
+from safe_repo import sex as gf # Assuming 'sex' is where your Pyrogram 'app' client is defined
 import pymongo
 from pyrogram import filters
 from pyrogram.errors import ChannelBanned, ChannelInvalid, ChannelPrivate, ChatIdInvalid, ChatInvalid, PeerIdInvalid
@@ -24,10 +25,24 @@ import re
 def thumbnail(sender):
     return f'{sender}.jpg' if os.path.exists(f'{sender}.jpg') else None
 
-# Dictionary to store pending split requests and number of parts
-pending_split_requests = {}
-split_part_counts = {}
-split_tasks = {} # To store asyncio tasks for split requests to cancel if needed
+# Dictionary to store Futures for pending split requests
+response_futures = {}
+
+# Pyrogram Message Handler for /sp command replies
+@app.on_message(filters.command("sp") & filters.reply) # Filter for /sp command as reply
+async def split_command_handler_response(client, message):
+    user_id = message.from_user.id
+    if user_id in response_futures: # Check if user is waiting for a response
+        future = response_futures[user_id]
+        if not future.done():
+            try:
+                parts = int(message.text.split()[1])
+                future.set_result(parts) # Set the number of parts as the Future's result
+            except (ValueError, IndexError):
+                future.set_result(None) # Set None if command is invalid
+            del response_futures[user_id] # Clean up the Future
+            return
+
 
 async def get_msg(userbot, sender, edit_id, msg_link, i, message):
     edit = ""
@@ -115,37 +130,23 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message):
             # CODES are hidden
 
             await edit.edit('File downloaded, processing...')
-            split_message = await app.send_message(sender, "Do you want to split this video? Send `/sp <number_of_parts>` within 5 seconds to split, otherwise it will be uploaded as a single file.")
+            split_message = await app.send_message(sender, "Do you want to split this video? Send `/sp <number_of_parts>` as a reply to this message within 5 seconds to split, otherwise it will be uploaded as a single file.")
             pending_split_requests[sender] = file # Store file path for potential split
+            response_futures[sender] = asyncio.Future() # Create a Future for this user
 
             try:
-                split_task = asyncio.ensure_future(gf.get_response(split_message.chat_id)) # Use telethon to get response
-                split_tasks[sender] = split_task # Store task to cancel if needed
-                response = await asyncio.wait_for(split_task, timeout=5.0)
-
-                if response and response.text:
-                    if response.text.startswith('/sp'):
-                        try:
-                            parts = int(response.text.split()[1])
-                            if parts > 1:
-                                split_part_counts[sender] = parts
-                                await app.delete_messages(sender, split_message.id)
-                                await app.delete_messages(sender, response.id)
-                                await edit.edit(f'Splitting video into {parts} parts...')
-                                await split_video(file, parts, edit, sender, msg, caption, chatx, target_chat_id, LOG_GROUP) # Call split and upload function
-                                del pending_split_requests[sender]
-                                del split_part_counts[sender]
-                                del split_tasks[sender]
-                                return # Exit function after split and upload
-                            else:
-                                await app.send_message(sender, "Invalid number of parts. Uploading as single file.") # Inform user about invalid parts
-                        except (ValueError, IndexError):
-                            await app.send_message(sender, "Invalid split command format. Uploading as single file.") # Inform user about command format error
-                    else:
-                        await app.send_message(sender, "No split command detected within timeout. Uploading as single file.") # Inform user about timeout
+                parts = await asyncio.wait_for(response_futures[sender], timeout=5.0) # Wait for the Future to get a result with timeout
+                if parts and isinstance(parts, int) and parts > 1:
+                    split_part_counts[sender] = parts
+                    await app.delete_messages(sender, split_message.id)
+                    await edit.edit(f'Splitting video into {parts} parts...')
+                    await split_video(file, parts, edit, sender, msg, caption, chatx, target_chat_id, LOG_GROUP) # Call split and upload function
+                    del pending_split_requests[sender]
+                    del split_part_counts[sender]
+                    del response_futures[sender] # Clean up Future
+                    return # Exit function after split and upload
                 else:
-                    await app.send_message(sender, "No response detected within timeout. Uploading as single file.") # Inform user about timeout
-
+                    await app.send_message(sender, "Invalid split command or timeout. Uploading as single file.") # Inform user about invalid parts
             except asyncio.TimeoutError:
                 await app.send_message(sender, "Timeout reached. Uploading as single file.") # Inform user about timeout
             except asyncio.CancelledError: # Handle cancellation if needed
@@ -154,8 +155,8 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message):
                 await app.send_message(sender, f"Error processing split request: {e}. Uploading as single file.") # Inform user about error
 
             finally:
-                if sender in split_tasks:
-                    del split_tasks[sender] # Clean up task from dict
+                if sender in response_futures:
+                    del response_futures[sender] # Ensure Future is removed even on error/timeout
 
             await edit.edit('Trying to Uplaod ...')
 
@@ -679,8 +680,8 @@ async def split_command_handler(event):
             parts = int(event.text.split()[1])
             if parts > 1:
                 split_part_counts[user_id] = parts
-                if user_id in split_tasks and not split_tasks[user_id].cancelled(): # If task is running, cancel it to avoid conflict
-                    split_tasks[user_id].cancel()
+                if user_id in response_futures and not response_futures[user_id].cancelled(): # If task is running, cancel it to avoid conflict (though not strictly needed here)
+                    response_futures[user_id].cancel() # Cancel any pending wait for response (not really needed in this logic but good practice)
                 await event.respond(f"Video will be split into {parts} parts.")
             else:
                 await event.respond("Invalid number of parts. Uploading as single file.")
