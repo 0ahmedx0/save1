@@ -20,14 +20,14 @@ import cv2
 from telethon import events, Button
 import re
 
-
-def thumbnail(sender):
-    return f'{sender}.jpg' if os.path.exists(f'{sender}.jpg') else None
-
 # Dictionary to store Futures for pending split requests
 response_futures = {}
 pending_split_requests[sender] = file # Store file path for potential split
 response_futures[sender] = asyncio.Future() # Create a Future for this user
+
+def thumbnail(sender):
+    return f'{sender}.jpg' if os.path.exists(f'{sender}.jpg') else None
+
 
 # Pyrogram Message Handler for /sp command replies
 @app.on_message(filters.command("sp") & filters.reply) # Filter for /sp command as reply
