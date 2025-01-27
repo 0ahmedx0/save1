@@ -194,7 +194,7 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message, is_batch_mode=
                 duration= metadata['duration']
                 original_thumb_path = await screenshot(file, duration, chatx) # إنشاء الصورة المصغرة الأصلية مرة واحدة فقط
 
-                if duration <= 300: # Original condition, upload directly if short video
+                if duration <= 120: # Original condition, upload directly if short video
                     safe_repo = await app.send_video(chat_id=sender, video=file, caption=caption, height=height, width=width, duration=duration, thumb=original_thumb_path, progress=progress_bar, progress_args=('**UPLOADING:**\n', edit, time.time())) # استخدام الصورة المصغرة الأصلية هنا
                     if msg.pinned_message:
                         try:
