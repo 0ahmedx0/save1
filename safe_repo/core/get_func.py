@@ -54,17 +54,21 @@ async def split_video_ffmpeg(input_file, num_parts, output_dir):
 
         # يمكنك هنا طباعة أو استخدام `part_duration` للتأكد من أنها صحيحة
 
-async def upload_video_parts(app, sender, edit_id, output_dir, msg, caption, width, height, duration, thumb_path, log_group):
+async def upload_video_parts(app, sender, edit_id, output_dir, msg, caption, width, height, duration, original_thumb_path, log_group): # تم تغيير اسم thumb_path إلى original_thumb_path
     """Uploads video parts from the specified directory."""
     for part_file in sorted(os.listdir(output_dir)): # Sort to ensure parts are uploaded in order
         if part_file.startswith("part") and part_file.endswith(".mp4"): # Adjust extension if needed
             part_path = os.path.join(output_dir, part_file)
+            part_thumb_path = None # تهيئة مسار الصورة المصغرة للجزء
             try:
                 # استخراج بيانات الجزء من الفيديو للحصول على المدة الصحيحة
                 part_metadata = video_metadata(part_path)
                 part_duration = part_metadata['duration']
                 part_width = part_metadata['width']  # احصل على العرض والارتفاع للجزء أيضاً إذا لزم الأمر
                 part_height = part_metadata['height']
+
+                # إنشاء صورة مصغرة خاصة بالجزء
+                part_thumb_path = await screenshot(part_path, part_duration, sender) # استخدم مسار الجزء والمدة لإنشاء صورة مصغرة جديدة
 
                 safe_repo = await app.send_video(
                     chat_id=sender,
@@ -74,7 +78,7 @@ async def upload_video_parts(app, sender, edit_id, output_dir, msg, caption, wid
                     height=part_height, # استخدم الارتفاع والعرض للجزء
                     width=part_width,
                     duration=part_duration, # استخدم المدة الصحيحة للجزء
-                    thumb=thumb_path,
+                    thumb=part_thumb_path, # استخدم الصورة المصغرة الخاصة بالجزء هنا
                     progress=progress_bar,
                     progress_args=(
                     f'**__Uploading {part_file}...__**\n',
@@ -92,6 +96,8 @@ async def upload_video_parts(app, sender, edit_id, output_dir, msg, caption, wid
                 await app.edit_message_text(sender, edit_id, f"Error uploading {part_file}. Bot might not be admin in the chat...")
             finally:
                 os.remove(part_path) # Clean up part file after upload
+                if part_thumb_path and os.path.exists(part_thumb_path): # تحقق من وجود الصورة المصغرة قبل محاولة حذفها
+                    os.remove(part_thumb_path) # حذف الصورة المصغرة الخاصة بالجزء بعد الرفع
 
 async def get_msg(userbot, sender, edit_id, msg_link, i, message, is_batch_mode=False): # إضافة الوسيط الجديد is_batch_mode بقيمة افتراضية False
     edit = ""
@@ -186,9 +192,10 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message, is_batch_mode=
                 width= metadata['width']
                 height= metadata['height']
                 duration= metadata['duration']
+                original_thumb_path = await screenshot(file, duration, chatx) # إنشاء الصورة المصغرة الأصلية مرة واحدة فقط
 
                 if duration <= 300: # Original condition, upload directly if short video
-                    safe_repo = await app.send_video(chat_id=sender, video=file, caption=caption, height=height, width=width, duration=duration, thumb=None, progress=progress_bar, progress_args=('**UPLOADING:**\n', edit, time.time()))
+                    safe_repo = await app.send_video(chat_id=sender, video=file, caption=caption, height=height, width=width, duration=duration, thumb=original_thumb_path, progress=progress_bar, progress_args=('**UPLOADING:**\n', edit, time.time())) # استخدام الصورة المصغرة الأصلية هنا
                     if msg.pinned_message:
                         try:
                             await safe_repo.pin(both_sides=True)
@@ -210,7 +217,7 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message, is_batch_mode=
                         'width': width,
                         'height': height,
                         'duration': duration,
-                        'thumb_path': await screenshot(file, duration, chatx), # Generate thumb here and store
+                        'thumb_path': original_thumb_path, # تمرير الصورة المصغرة الأصلية هنا
                         'log_group': LOG_GROUP,
                         'chatx': chatx
                     }
@@ -219,7 +226,6 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message, is_batch_mode=
                 else: # إذا كان في وضع الباتش، يتم رفعه كجزء واحد تلقائياً
                     await app.edit_message_text(sender, edit_id, "Video is longer than 5 minutes. Uploading as single part in batch mode...")
                     # رفع الفيديو كجزء واحد مباشرة في وضع الباتش (يمكنك تعديل هذا الجزء إذا كنت تريد سلوكاً مختلفاً)
-                    thumb_path = await screenshot(file, duration, chatx)
                     try:
                         safe_repo = await app.send_video(
                             chat_id=sender,
@@ -229,7 +235,7 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message, is_batch_mode=
                             height=height,
                             width=width,
                             duration=duration,
-                            thumb=thumb_path,
+                            thumb=original_thumb_path, # استخدام الصورة المصغرة الأصلية هنا
                             progress=progress_bar,
                             progress_args=(
                             '**__Uploading...__**\n',
@@ -644,7 +650,7 @@ async def handle_split_reply(event):
             width = split_data['width']
             height = split_data['height']
             duration = split_data['duration']
-            thumb_path = split_data['thumb_path']
+            original_thumb_path = split_data['thumb_path'] # تم التغيير هنا لاستخدام original_thumb_path
             log_group = split_data['log_group']
             chatx = split_data['chatx']
 
@@ -653,7 +659,7 @@ async def handle_split_reply(event):
             try:
                 await split_video_ffmpeg(file_path, num_parts, temp_dir.name)
                 await app.edit_message_text(sender, edit_id, "Uploading video parts...")
-                await upload_video_parts(app, sender, edit_id, temp_dir.name, msg, caption, width, height, duration, thumb_path, log_group)
+                await upload_video_parts(app, sender, edit_id, temp_dir.name, msg, caption, width, height, duration, original_thumb_path, log_group) # تم التغيير هنا لتمرير original_thumb_path
                 await app.edit_message_text(sender, edit_id, "Video parts uploaded successfully!")
             except Exception as split_err:
                 await app.edit_message_text(sender, edit_id, f"Error splitting or uploading video parts: {split_err}")
