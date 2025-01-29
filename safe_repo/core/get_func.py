@@ -789,6 +789,7 @@ async def handle_split_reply(event):
         except ValueError:
             await app.send_message(sender, "Invalid number of parts. Please reply with a number.")
         except KeyError:
+            pass
 @gf.on(events.NewMessage(func=lambda e: e.sender_id in pending_video_splits))
 async def handle_split_reply(event):
     user_id = event.sender_id
