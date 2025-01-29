@@ -290,10 +290,77 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message, is_batch_mode=
 
 
             elif msg.media == MessageMediaType.PHOTO:
-               # ... (same logic as before for photo handling) ...
+                
+                await edit.edit("**`Uploading photo...`")
+                delete_words = load_delete_words(sender)
+                custom_caption = get_user_caption_preference(sender)
+                original_caption = msg.caption if msg.caption else ''
+                final_caption = f"{original_caption}" if custom_caption else f"{original_caption}"
+                lines = final_caption.split('\n')
+                processed_lines = []
+                for line in lines:
+                    for word in delete_words:
+                        line = line.replace(word, '')
+                    if line.strip():
+                        processed_lines.append(line.strip())
+                final_caption = '\n'.join(processed_lines)
+                replacements = load_replacement_words(sender)
+                for word, replace_word in replacements.items():
+                    final_caption = final_caption.replace(word, replace_word)
+                caption = f"{final_caption}\n\n__**{custom_caption}**__" if custom_caption else f"{final_caption}"
 
+                target_chat_id = user_chat_ids.get(sender, sender)
+                safe_repo = await app.send_photo(chat_id=target_chat_id, photo=file, caption=caption)
+                if msg.pinned_message:
+                    try:
+                        await safe_repo.pin(both_sides=True)
+                    except Exception as e:
+                        await safe_repo.pin()
+                await safe_repo.copy(LOG_GROUP)
             else:
-                # ... (same logic as before for document handling) ...
+                thumb_path = thumbnail(chatx)
+                delete_words = load_delete_words(sender)
+                custom_caption = get_user_caption_preference(sender)
+                original_caption = msg.caption if msg.caption else ''
+                final_caption = f"{original_caption}" if custom_caption else f"{original_caption}"
+                lines = final_caption.split('\n')
+                processed_lines = []
+                for line in lines:
+                    for word in delete_words:
+                        line = line.replace(word, '')
+                    if line.strip():
+                        processed_lines.append(line.strip())
+                final_caption = '\n'.join(processed_lines)
+                replacements = load_replacement_words(chatx)
+                for word, replace_word in replacements.items():
+                    final_caption = final_caption.replace(word, replace_word)
+                caption = f"{final_caption}\n\n__**{custom_caption}**__" if custom_caption else f"{final_caption}"
+
+                target_chat_id = user_chat_ids.get(chatx, chatx)
+                try:
+                    safe_repo = await app.send_document(
+                        chat_id=target_chat_id,
+                        document=file,
+                        caption=caption,
+                        thumb=thumb_path,
+                        progress=progress_bar,
+                        progress_args=(
+                        '**`Uploading...`**\n',
+                        edit,
+                        time.time()
+                        )
+                    )
+                    if msg.pinned_message:
+                        try:
+                            await safe_repo.pin(both_sides=True)
+                        except Exception as e:
+                            await safe_repo.pin()
+
+                    await safe_repo.copy(LOG_GROUP)
+                except:
+                    await app.edit_message_text(sender, edit_id, "The bot is not an admin in the specified chat.")
+
+                os.remove(file)
 
             await edit.delete()
 
