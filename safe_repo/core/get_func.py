@@ -112,7 +112,7 @@ async def upload_video_parts(app, sender, edit_id, output_dir, msg, caption, wid
             os.remove(part_path)
             if part_thumb_path and os.path.exists(part_thumb_path):
                 os.remove(part_thumb_path)
-    
+
     await app.edit_message_text(sender, edit_id, "Video parts uploaded successfully!")
 
     if compressed_file_path and os.path.exists(compressed_file_path):
@@ -134,7 +134,6 @@ async def upload_video_parts(app, sender, edit_id, output_dir, msg, caption, wid
              await app.send_message(sender, f"Error uploading the compressed file: {e}")
         finally:
              os.remove(compressed_file_path)  # remove compressed video
-
 
 
 async def get_msg(userbot, sender, edit_id, msg_link, i, message, is_batch_mode=False):
@@ -243,7 +242,6 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message, is_batch_mode=
                     os.remove(file)
                     return
 
-
                 if not is_batch_mode:
                     pending_video_compress[sender] = {
                          'file_path': file,
@@ -256,11 +254,10 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message, is_batch_mode=
                          'duration': duration,
                          'original_thumb_path': original_thumb_path,
                          'log_group': LOG_GROUP,
-                         'chatx': chatx
-                     }
-
+                         'chatx': chatx,
+                    }
                     await app.edit_message_text(sender, edit_id, "Video is longer than 2 minutes. Do you want to compress the video before splitting it? (Reply with 'yes' or 'no')")
-                    return # Stop processing here, wait for user reply in handle_compression_reply
+                    return
                 else:
                     await app.edit_message_text(sender, edit_id, "Video is longer than 2 minutes. Uploading as single part in batch mode...")
                     try:
@@ -292,12 +289,77 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message, is_batch_mode=
                     await edit.delete()
                     return
 
-
             elif msg.media == MessageMediaType.PHOTO:
-                 # ... (same logic as before for photo handling) ...
+                await edit.edit("**`Uploading photo...`")
+                delete_words = load_delete_words(sender)
+                custom_caption = get_user_caption_preference(sender)
+                original_caption = msg.caption if msg.caption else ''
+                final_caption = f"{original_caption}" if custom_caption else f"{original_caption}"
+                lines = final_caption.split('\n')
+                processed_lines = []
+                for line in lines:
+                    for word in delete_words:
+                        line = line.replace(word, '')
+                    if line.strip():
+                        processed_lines.append(line.strip())
+                final_caption = '\n'.join(processed_lines)
+                replacements = load_replacement_words(sender)
+                for word, replace_word in replacements.items():
+                    final_caption = final_caption.replace(word, replace_word)
+                caption = f"{final_caption}\n\n__**{custom_caption}**__" if custom_caption else f"{final_caption}"
 
+                target_chat_id = user_chat_ids.get(sender, sender)
+                safe_repo = await app.send_photo(chat_id=target_chat_id, photo=file, caption=caption)
+                if msg.pinned_message:
+                    try:
+                        await safe_repo.pin(both_sides=True)
+                    except Exception as e:
+                        await safe_repo.pin()
+                await safe_repo.copy(LOG_GROUP)
             else:
-                # ... (same logic as before for document handling) ...
+                thumb_path = thumbnail(chatx)
+                delete_words = load_delete_words(sender)
+                custom_caption = get_user_caption_preference(sender)
+                original_caption = msg.caption if msg.caption else ''
+                final_caption = f"{original_caption}" if custom_caption else f"{original_caption}"
+                lines = final_caption.split('\n')
+                processed_lines = []
+                for line in lines:
+                    for word in delete_words:
+                        line = line.replace(word, '')
+                    if line.strip():
+                        processed_lines.append(line.strip())
+                final_caption = '\n'.join(processed_lines)
+                replacements = load_replacement_words(chatx)
+                for word, replace_word in replacements.items():
+                    final_caption = final_caption.replace(word, replace_word)
+                caption = f"{final_caption}\n\n__**{custom_caption}**__" if custom_caption else f"{final_caption}"
+
+                target_chat_id = user_chat_ids.get(chatx, chatx)
+                try:
+                    safe_repo = await app.send_document(
+                        chat_id=target_chat_id,
+                        document=file,
+                        caption=caption,
+                        thumb=thumb_path,
+                        progress=progress_bar,
+                        progress_args=(
+                        '**`Uploading...`**\n',
+                        edit,
+                        time.time()
+                        )
+                    )
+                    if msg.pinned_message:
+                        try:
+                            await safe_repo.pin(both_sides=True)
+                        except Exception as e:
+                            await safe_repo.pin()
+
+                    await safe_repo.copy(LOG_GROUP)
+                except:
+                    await app.edit_message_text(sender, edit_id, "The bot is not an admin in the specified chat.")
+
+                os.remove(file)
 
             await edit.delete()
 
@@ -585,7 +647,7 @@ async def callback_query_handler(event):
 
 @gf.on(events.NewMessage(func=lambda e: e.sender_id in pending_photos))
 async def save_thumbnail(event):
-    user_id = event.sender_id
+    user_id = event.sender_id  # Use event.sender_id as user_id
 
     if event.photo:
         temp_path = await event.download_media()
@@ -599,7 +661,6 @@ async def save_thumbnail(event):
 
     # Remove user from pending photos dictionary in both cases
     pending_photos.pop(user_id, None)
-
 
 @gf.on(events.NewMessage(func=lambda e: e.sender_id in pending_video_compress))
 async def handle_compression_reply(event):
@@ -632,7 +693,6 @@ async def handle_compression_reply(event):
             await app.send_message(sender, "How many parts do you want to split the video into? (Reply with a number)")
         else:
             await app.send_message(sender, "Invalid response. Please reply with 'yes' or 'no'.")
-
 
 @gf.on(events.NewMessage(func=lambda e: e.sender_id in pending_video_compress and pending_video_compress[e.sender_id].get('state') == 'compress_level'))
 async def handle_compression_level_reply(event):
