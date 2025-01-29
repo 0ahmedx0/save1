@@ -665,14 +665,18 @@ async def save_thumbnail(event):
 @gf.on(events.NewMessage(func=lambda e: e.sender_id in pending_video_compress))
 async def handle_compression_reply(event):
     user_id = event.sender_id
+    print(f"handle_compression_reply: User ID: {user_id}, Text: {event.text}, Reply_to_msg_id: {event.reply_to_msg_id}") # Debug print
     if not event.reply_to_msg_id:
+        print(f"handle_compression_reply: No reply_to_msg_id found for user {user_id}. Ignoring")
         return
 
     if event.reply_to_msg_id:
         if event.text.lower() in ["yes", "نعم", "اجل"]:
             pending_video_compress[user_id]['compress'] = True # Mark the user wants to compress
-            await app.send_message(sender, "Please choose the compression level (reply with number):\n1. High Quality (CRF 18)\n2. Medium Quality (CRF 23)\n3. Low Quality (CRF 28)")
             pending_video_compress[user_id]['state'] = 'compress_level'
+            print(f"handle_compression_reply: User {user_id} chose yes, state is now {pending_video_compress[user_id]['state']}")
+            await app.send_message(sender, "Please choose the compression level (reply with number):\n1. High Quality (CRF 18)\n2. Medium Quality (CRF 23)\n3. Low Quality (CRF 28)")
+            
         elif event.text.lower() in ["no", "لا", "كلا"]:
             pending_video_compress[user_id]['compress'] = False
             pending_video_splits[user_id] = {
@@ -689,10 +693,11 @@ async def handle_compression_reply(event):
                 'chatx': pending_video_compress[user_id]['chatx'],
              }
             del pending_video_compress[user_id]
-
+            print(f"handle_compression_reply: User {user_id} chose no, and session was deleted, going directly to split")
             await app.send_message(sender, "How many parts do you want to split the video into? (Reply with a number)")
         else:
             await app.send_message(sender, "Invalid response. Please reply with 'yes' or 'no'.")
+            print(f"handle_compression_reply: Invalid reply for user {user_id}")
 
 
 @gf.on(events.NewMessage(func=lambda e: e.sender_id in pending_video_compress and pending_video_compress[e.sender_id].get('state') == 'compress_level'))
