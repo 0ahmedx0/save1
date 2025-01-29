@@ -665,6 +665,7 @@ async def save_thumbnail(event):
 @gf.on(events.NewMessage(func=lambda e: e.sender_id in pending_video_compress))
 async def handle_compression_reply(event):
     user_id = event.sender_id
+    sender = event.sender_id
     print(f"handle_compression_reply: User ID: {user_id}, Text: {event.text}, Reply_to_msg_id: {event.reply_to_msg_id}") # Debug print
     if not event.reply_to_msg_id:
         print(f"handle_compression_reply: No reply_to_msg_id found for user {user_id}. Ignoring")
@@ -703,6 +704,7 @@ async def handle_compression_reply(event):
 @gf.on(events.NewMessage(func=lambda e: e.sender_id in pending_video_compress and pending_video_compress[e.sender_id].get('state') == 'compress_level'))
 async def handle_compression_level_reply(event):
     user_id = event.sender_id
+    sender = event.sender_id
     if not event.reply_to_msg_id:
         return
 
@@ -716,7 +718,6 @@ async def handle_compression_level_reply(event):
             crf = crf_values[level]
             file_path = pending_video_compress[user_id]['file_path']
             edit_id = pending_video_compress[user_id]['edit_id']
-            sender = pending_video_compress[user_id]['sender']
             msg = pending_video_compress[user_id]['msg']
             caption = pending_video_compress[user_id]['caption']
             width = pending_video_compress[user_id]['width']
@@ -739,72 +740,31 @@ async def handle_compression_level_reply(event):
                 'width': width,
                 'height': height,
                 'duration': duration,
-                'thumb_path': original_thumb_path, # Still using the original thumbnail
+                'thumb_path': original_thumb_path,
                 'log_group': log_group,
                 'chatx': chatx,
                 'temp_dir':temp_dir,
-                'compressed_file_path': output_file,
+                'compressed_file_path':output_file,
             }
             del pending_video_compress[user_id] # remove it from compression
             await app.edit_message_text(sender, edit_id, "Compression complete. How many parts do you want to split the video into? (Reply with a number)")
         except ValueError:
             await app.send_message(sender, "Invalid compression level. Please reply with a number between 1 and 3.")
-
-@gf.on(events.NewMessage(func=lambda e: e.sender_id in pending_video_splits))
-async def handle_split_reply(event):
-    user_id = event.sender_id
-    if not event.reply_to_msg_id:
-        return
-    if event.reply_to_msg_id:
-        try:
-            num_parts = int(event.text)
-            if num_parts <= 0:
-                await event.respond("Please enter a positive number of parts.")
-                return
-
-            split_data = pending_video_splits.pop(user_id)
-            file_path = split_data['file_path']
-            edit_id = split_data['edit_id']
-            sender = split_data['sender']
-            msg = split_data['msg']
-            caption = split_data['caption']
-            width = split_data['width']
-            height = split_data['height']
-            duration = split_data['duration']
-            thumb_path = split_data['thumb_path']
-            log_group = split_data['log_group']
-            chatx = split_data['chatx']
-            temp_dir = split_data.get('temp_dir')
-            compressed_file_path = split_data.get('compressed_file_path') # Get from pending
-
-            await app.edit_message_text(sender, edit_id, f"Splitting video into {num_parts} parts...")
-            temp_dir2 = tempfile.TemporaryDirectory() if not temp_dir else temp_dir
-            try:
-              await split_video_ffmpeg(file_path, num_parts, temp_dir2.name)
-              await upload_video_parts(app, sender, edit_id, temp_dir2.name, msg, caption, width, height, duration, thumb_path, log_group, compressed_file_path) # Pass compress path
-            except Exception as split_err:
-                 await app.edit_message_text(sender, edit_id, f"Error splitting or uploading video parts: {split_err}")
-            finally:
-              if not temp_dir:
-                 temp_dir2.cleanup()
-              else:
-                 temp_dir.cleanup()
-              if not compressed_file_path:
-                  os.remove(file_path) # if not compressed then remove original file
-        except ValueError:
-            await app.send_message(sender, "Invalid number of parts. Please reply with a number.")
         except KeyError:
             pass
+
+
 @gf.on(events.NewMessage(func=lambda e: e.sender_id in pending_video_splits))
 async def handle_split_reply(event):
     user_id = event.sender_id
+    sender = event.sender_id
     if not event.reply_to_msg_id:
         return
     if event.reply_to_msg_id:
         try:
             num_parts = int(event.text)
             if num_parts <= 0:
-                await event.respond("Please enter a positive number of parts.")
+                await app.send_message(sender, "Please enter a positive number of parts.")
                 return
 
             split_data = pending_video_splits.pop(user_id)
@@ -826,7 +786,7 @@ async def handle_split_reply(event):
             temp_dir2 = tempfile.TemporaryDirectory() if not temp_dir else temp_dir
             try:
               await split_video_ffmpeg(file_path, num_parts, temp_dir2.name)
-              await upload_video_parts(app, sender, edit_id, temp_dir2.name, msg, caption, width, height, duration, thumb_path, log_group, compressed_file_path) # Pass compress path
+              await upload_video_parts(app, sender, edit_id, temp_dir2.name, msg, caption, width, height, duration, thumb_path, log_group, compressed_file_path)
             except Exception as split_err:
                  await app.edit_message_text(sender, edit_id, f"Error splitting or uploading video parts: {split_err}")
             finally:
@@ -834,12 +794,12 @@ async def handle_split_reply(event):
                  temp_dir2.cleanup()
               else:
                  temp_dir.cleanup()
-              if compressed_file_path and os.path.exists(compressed_file_path): # Check if compressed file exist to remove it
+              if compressed_file_path and os.path.exists(compressed_file_path):
                   os.remove(file_path)
         except ValueError:
             await app.send_message(sender, "Invalid number of parts. Please reply with a number.")
         except KeyError:
-            pass  # Ignore if no pending split request for this user (might be timed out or cancelled)
+            pass
 
 
 @gf.on(events.NewMessage)
