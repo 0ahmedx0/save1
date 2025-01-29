@@ -788,7 +788,7 @@ async def handle_split_reply(event):
                   os.remove(file_path) # if not compressed then remove original file
         except ValueError:
             await app.send_message(sender, "Invalid number of parts. Please reply with a number.")
-        except KeyError
+        except KeyError:
 @gf.on(events.NewMessage(func=lambda e: e.sender_id in pending_video_splits))
 async def handle_split_reply(event):
     user_id = event.sender_id
