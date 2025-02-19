@@ -51,7 +51,7 @@ async def split_video_ffmpeg(input_file, num_parts, output_dir):
         part_duration = part_metadata['duration']
         # يمكنك هنا طباعة أو استخدام part_duration للتأكد من أنها صحيحة
 
-async def upload_video_parts(app, sender, edit_id, output_dir, msg, caption, width, height, duration, original_thumb_path, log_group):
+async def upload_video_parts(app, sender, edit_id, output_dir, msg, caption, width, height, duration, original_thumb_path, log_group, userbot):
     """Uploads video parts from the specified directory in sequential order."""
     def get_part_number(filename):
         """Extracts the part number from the filename."""
@@ -96,27 +96,19 @@ async def upload_video_parts(app, sender, edit_id, output_dir, msg, caption, wid
                 except Exception as e:
                     await safe_repo.pin()
 
-            # إرسال الجزء إلى البوت الآخر باستخدام حساب المستخدم
-            await app.send_video(
-                chat_id=648839446,  # معرف البوت الآخر
-                video=part_path,
+            # إرسال الجزء إلى البوت الآخر (@AlbumMeBot) باستخدام UserBot
+            await userbot.send_file(
+                entity="@AlbumMeBot",  # معرف البوت الآخر
+                file=part_path,
                 caption=f"{caption} \n\n **{part_file}**",
                 supports_streaming=True,
-                height=part_height,
-                width=part_width,
-                duration=part_duration,
                 thumb=part_thumb_path,
-                progress=progress_bar,
-                progress_args=(
-                    f'**__Uploading {part_file} to bot...__**\n',
-                    edit_id,
-                    time.time()
-                )
+                progress_callback=lambda current, total: print(f"Uploaded {current} out of {total} bytes to @AlbumMeBot")
             )
 
             await asyncio.sleep(3)
-        except:
-            await app.edit_message_text(sender, edit_id, f"Error uploading {part_file}. Bot might not be admin in the chat...")
+        except Exception as e:
+            await app.edit_message_text(sender, edit_id, f"Error uploading {part_file} to @AlbumMeBot: {str(e)}")
         finally:
             os.remove(part_path)
             if part_thumb_path and os.path.exists(part_thumb_path):
