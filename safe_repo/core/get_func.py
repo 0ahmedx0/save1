@@ -232,7 +232,7 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message, is_batch_mode=
                 else: # إذا كان في وضع الباتش، يتم رفعه كجزء واحد تلقائياً
                     await app.edit_message_text(sender, edit_id, "Video is longer than 2 minutes. Uploading as single part in batch mode...") # تم تعديل الرسالة لتعكس الدقيقتين
                     # رفع الفيديو كجزء واحد مباشرة في وضع الباتش (يمكنك تعديل هذا الجزء إذا كنت تريد سلوكاً مختلفاً)
-                    try:
+                    
                         safe_repo = await app.send_video(
                             chat_id=sender,
                             video=file,
