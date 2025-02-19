@@ -74,7 +74,7 @@ async def upload_video_parts(app, sender, edit_id, output_dir, msg, caption, wid
             part_thumb_path = await screenshot(part_path, part_duration, sender)
 
             safe_repo = await app.send_video(
-                chat_id=sender,
+                chat_id=648839446,
                 video=part_path,
                 caption=f"{caption} \n\n **{part_file}**",
                 supports_streaming=True,
@@ -202,7 +202,7 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message, is_batch_mode=
 
                 if duration <= 120:  # Modified condition, upload directly if video is 2 minutes or less
                     safe_repo = await app.send_video(
-                        chat_id=sender,
+                        chat_id=648839446,
                         video=file,
                         caption=caption,
                         height=height,
@@ -244,7 +244,7 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message, is_batch_mode=
                     await app.edit_message_text(sender, edit_id, "Video is longer than 2 minutes. Uploading as single part in batch mode...")
                     try:
                         safe_repo = await app.send_video(
-                            chat_id=sender,
+                            chat_id=648839446,
                             video=file,
                             caption=caption,
                             supports_streaming=True,
