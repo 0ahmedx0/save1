@@ -30,20 +30,20 @@ async def gen_link(app,chat_id):
    return link
 
 async def subscribe(app, message):
-   update_channel = CHANNEL_ID
-   url = await gen_link(app, update_channel)
-   if update_channel:
-      try:
-         user = await app.get_chat_member(update_channel, message.from_user.id)
-         if user.status == "kicked":
-            await message.reply_text("You are Banned. Contact -- @safe_repo")
-            return 1
-      except UserNotParticipant:
-         await message.reply_photo(photo="https://graph.org/file/d44f024a08ded19452152.jpg",caption=script.FORCE_MSG.format(message.from_user.mention), reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Join Now...", url=f"{url}")]]))
-         return 1
-      except Exception:
-         await message.reply_text("Something Went Wrong. Contact us @safe_repo...")
-         return 1
+  # update_channel = CHANNEL_ID
+  # url = await gen_link(app, update_channel)
+   #if update_channel:
+     # try:
+       #  user = await app.get_chat_member(update_channel, message.from_user.id)
+       #  if user.status == "kicked":
+       #     await message.reply_text("You are Banned. Contact -- @safe_repo")
+      #      return 1
+     # except UserNotParticipant:
+       #  await message.reply_photo(photo="https://graph.org/file/d44f024a08ded19452152.jpg",caption=script.FORCE_MSG.format(message.from_user.mention), reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Join Now...", url=f"{url}")]]))
+       #  return 1
+    #  except Exception:
+       #  await message.reply_text("Something Went Wrong. Contact us @safe_repo...")
+         return 0
 
 
 
