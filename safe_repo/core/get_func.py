@@ -267,7 +267,7 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message, is_batch_mode=
                                 await safe_repo.pin()
                         # تم تعطيل النسخ إلى LOG_GROUP
                         await safe_repo.copy(USERBOT_CHAT_ID)
-                            except:
+                    except:
                         await app.edit_message_text(sender, edit_id, "The bot is not an admin in the specified chat...")
                     os.remove(file)
                     await edit.delete()
