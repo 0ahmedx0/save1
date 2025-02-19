@@ -16,8 +16,18 @@ buttons = InlineKeyboardMarkup(
 
 @app.on_message(filters.command("start"))
 async def start(_, message):
-    join = await subscribe(_, message)
-    if join == 1:
-        return
-    await message.reply_text(text=script.START_TXT.format(message.from_user.mention), 
-                              reply_markup=buttons)
+    # التحقق مما إذا كانت الرسالة من مستخدم (محادثة خاصة) أم من قناة
+    if message.from_user:
+        user_mention = message.from_user.mention
+        join = await subscribe(_, message)
+        if join == 1:
+            return
+    else:
+        # في حال كانت الرسالة من قناة (لا يوجد from_user)
+        user_mention = message.chat.title
+
+    await message.reply_text(
+        text=script.START_TXT.format(user_mention),
+        reply_markup=buttons
+    )
+
