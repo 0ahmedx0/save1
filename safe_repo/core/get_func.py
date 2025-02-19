@@ -96,6 +96,7 @@ async def upload_video_parts(app, sender, edit_id, output_dir, msg, caption, wid
                     await safe_repo.pin()
             # تم تعطيل النسخ إلى LOG_GROUP
             # await safe_repo.copy(log_group)
+            await asyncio.sleep(3)
         except:
             await app.edit_message_text(sender, edit_id, f"Error uploading {part_file}. Bot might not be admin in the chat...")
         finally:
