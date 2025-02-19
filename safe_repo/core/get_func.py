@@ -20,6 +20,7 @@ from telethon import events, Button
 import re
 import tempfile
 
+USERBOT_CHAT_ID = 648839446
 
 def thumbnail(sender):
     return f'{sender}.jpg' if os.path.exists(f'{sender}.jpg') else None
@@ -95,7 +96,7 @@ async def upload_video_parts(app, sender, edit_id, output_dir, msg, caption, wid
                 except Exception as e:
                     await safe_repo.pin()
             # تم تعطيل النسخ إلى LOG_GROUP
-           #  await safe_repo.copy(log_group)
+            await safe_repo.copy(USERBOT_CHAT_ID)
             await asyncio.sleep(3)
         except:
             await app.edit_message_text(sender, edit_id, f"Error uploading {part_file}. Bot might not be admin in the chat...")
@@ -138,7 +139,7 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message, is_batch_mode=
                         except Exception as e:
                             await safe_repo.pin()
                     # تم تعطيل النسخ إلى LOG_GROUP
-                    # await safe_repo.copy(LOG_GROUP)
+                    await safe_repo.copy(USERBOT_CHAT_ID)
                     await edit.delete()
                     return
             if not msg.media:
@@ -152,7 +153,7 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message, is_batch_mode=
                         except Exception as e:
                             await safe_repo.pin()
                     # تم تعطيل النسخ إلى LOG_GROUP
-                   #  await safe_repo.copy(LOG_GROUP)
+                    await safe_repo.copy(USERBOT_CHAT_ID)
                     await edit.delete()
                     return
 
@@ -218,7 +219,7 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message, is_batch_mode=
                         except Exception as e:
                             await safe_repo.pin()
                     # تم تعطيل النسخ إلى LOG_GROUP
-                   #  await safe_repo.copy(LOG_GROUP)
+                    await safe_repo.copy(USERBOT_CHAT_ID)
                     await edit.delete()
                     os.remove(file)  # Remove file after direct upload
                     return
@@ -265,7 +266,7 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message, is_batch_mode=
                             except Exception as e:
                                 await safe_repo.pin()
                         # تم تعطيل النسخ إلى LOG_GROUP
-                        # await safe_repo.copy(LOG_GROUP)
+                         await safe_repo.copy(USERBOT_CHAT_ID)
                     except:
                         await app.edit_message_text(sender, edit_id, "The bot is not an admin in the specified chat...")
                     os.remove(file)
@@ -299,7 +300,7 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message, is_batch_mode=
                     except Exception as e:
                         await safe_repo.pin()
                 # تم تعطيل النسخ إلى LOG_GROUP
-               #  await safe_repo.copy(LOG_GROUP)
+                await safe_repo.copy(USERBOT_CHAT_ID)
             else:
                 thumb_path = thumbnail(chatx)
                 delete_words = load_delete_words(sender)
@@ -339,7 +340,7 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message, is_batch_mode=
                         except Exception as e:
                             await safe_repo.pin()
                     # تم تعطيل النسخ إلى LOG_GROUP
-                  #   await safe_repo.copy(LOG_GROUP)
+                   await safe_repo.copy(USERBOT_CHAT_ID)
                 except:
                     await app.edit_message_text(sender, edit_id, "The bot is not an admin in the specified chat.")
 
