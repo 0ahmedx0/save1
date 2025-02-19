@@ -66,7 +66,6 @@ async def upload_video_parts(app, sender, edit_id, output_dir, msg, caption, wid
     for part_file in sorted(part_files, key=get_part_number): # استخدام مفتاح ترتيب مخصص هنا
         part_path = os.path.join(output_dir, part_file)
         part_thumb_path = None
-        try:
             # استخراج بيانات الجزء من الفيديو للحصول على المدة الصحيحة
             part_metadata = video_metadata(part_path)
             part_duration = part_metadata['duration']
@@ -98,8 +97,6 @@ async def upload_video_parts(app, sender, edit_id, output_dir, msg, caption, wid
                     await safe_repo.pin()
             #await safe_repo.copy(log_group)
        # except:
-         except:
-             pass
            # await app.edit_message_text(sender, edit_id, f"Error uploading {part_file}. Bot might not be admin in the chat...")
         finally:
             os.remove(part_path)
