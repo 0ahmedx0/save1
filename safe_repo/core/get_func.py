@@ -1,4 +1,3 @@
-
 #safe_repo
 
 import asyncio
@@ -36,7 +35,7 @@ async def split_video_ffmpeg(input_file, num_parts, output_dir):
 
     for i in range(num_parts):
         start_time = i * split_duration
-        output_file = os.path.join(output_dir, f"part{i+1}.mp4") # Assuming mp4 output, adjust if needed
+        output_file = os.path.join(output_dir, f"part{i+1}.mp4")  # Assuming mp4 output, adjust if needed
         command = [
             "ffmpeg",
             "-i", input_file,
@@ -45,13 +44,12 @@ async def split_video_ffmpeg(input_file, num_parts, output_dir):
             "-c", "copy",  # Copy codec for faster splitting, re-encode if needed for compatibility
             output_file
         ]
-        subprocess.run(command, check=True, capture_output=True) # capture_output=True for error handling in future
+        subprocess.run(command, check=True, capture_output=True)  # capture_output=True for error handling in future
 
         # تحديث بيانات الفيديو بعد التقسيم للحصول على المدة الصحيحة للجزء
         part_metadata = video_metadata(output_file)
         part_duration = part_metadata['duration']
-
-        # يمكنك هنا طباعة أو استخدام `part_duration` للتأكد من أنها صحيحة
+        # يمكنك هنا طباعة أو استخدام part_duration للتأكد من أنها صحيحة
 
 async def upload_video_parts(app, sender, edit_id, output_dir, msg, caption, width, height, duration, original_thumb_path, log_group):
     """Uploads video parts from the specified directory in sequential order."""
@@ -96,23 +94,22 @@ async def upload_video_parts(app, sender, edit_id, output_dir, msg, caption, wid
                     await safe_repo.pin(both_sides=True)
                 except Exception as e:
                     await safe_repo.pin()
-            #await safe_repo.copy(log_group)
-        except Exception as e:
+            # تم تعطيل النسخ إلى LOG_GROUP
+            # await safe_repo.copy(log_group)
+        except:
             await app.edit_message_text(sender, edit_id, f"Error uploading {part_file}. Bot might not be admin in the chat...")
         finally:
             os.remove(part_path)
             if part_thumb_path and os.path.exists(part_thumb_path):
                 os.remove(part_thumb_path)
 
-
-async def get_msg(userbot, sender, edit_id, msg_link, i, message, is_batch_mode=False): # إضافة الوسيط الجديد is_batch_mode بقيمة افتراضية False
+async def get_msg(userbot, sender, edit_id, msg_link, i, message, is_batch_mode=False):  # إضافة الوسيط الجديد is_batch_mode بقيمة افتراضية False
     edit = ""
     chat = ""
     round_message = False
     if "?single" in msg_link:
         msg_link = msg_link.split("?single")[0]
     msg_id = int(msg_link.split("/")[-1]) + int(i)
-
 
     if 't.me/c/' in msg_link or 't.me/b/' in msg_link:
         if 't.me/b/' not in msg_link:
@@ -139,7 +136,8 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message, is_batch_mode=
                             await safe_repo.pin(both_sides=True)
                         except Exception as e:
                             await safe_repo.pin()
-                   # await safe_repo.copy(LOG_GROUP)
+                    # تم تعطيل النسخ إلى LOG_GROUP
+                    # await safe_repo.copy(LOG_GROUP)
                     await edit.delete()
                     return
             if not msg.media:
@@ -152,7 +150,8 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message, is_batch_mode=
                             await safe_repo.pin(both_sides=True)
                         except Exception as e:
                             await safe_repo.pin()
-                  #  await safe_repo.copy(LOG_GROUP)
+                    # تم تعطيل النسخ إلى LOG_GROUP
+                    # await safe_repo.copy(LOG_GROUP)
                     await edit.delete()
                     return
 
@@ -160,7 +159,8 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message, is_batch_mode=
             file = await userbot.download_media(
                 msg,
                 progress=progress_bar,
-                progress_args=("**__Downloading: __**\n",edit,time.time()))
+                progress_args=("**__Downloading: __**\n", edit, time.time())
+            )
 
             custom_rename_tag = get_user_rename_preference(chatx)
             last_dot_index = str(file).rfind('.')
@@ -193,23 +193,33 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message, is_batch_mode=
             await edit.edit('Trying to Uplaod ...')
 
             if msg.media == MessageMediaType.VIDEO and msg.video.mime_type in ["video/mp4", "video/x-matroska"]:
-
                 metadata = video_metadata(file)
-                width= metadata['width']
-                height= metadata['height']
-                duration= metadata['duration']
-                original_thumb_path = await screenshot(file, duration, chatx) # إنشاء الصورة المصغرة الأصلية مرة واحدة فقط
+                width = metadata['width']
+                height = metadata['height']
+                duration = metadata['duration']
+                original_thumb_path = await screenshot(file, duration, chatx)  # إنشاء الصورة المصغرة الأصلية مرة واحدة فقط
 
-                if duration <= 120: # Modified condition, upload directly if video is 2 minutes or less
-                    safe_repo = await app.send_video(chat_id=sender, video=file, caption=caption, height=height, width=width, duration=duration, thumb=original_thumb_path, progress=progress_bar, progress_args=('**UPLOADING:**\n', edit, time.time())) # استخدام الصورة المصغرة الأصلية هنا
+                if duration <= 120:  # Modified condition, upload directly if video is 2 minutes or less
+                    safe_repo = await app.send_video(
+                        chat_id=sender,
+                        video=file,
+                        caption=caption,
+                        height=height,
+                        width=width,
+                        duration=duration,
+                        thumb=original_thumb_path,
+                        progress=progress_bar,
+                        progress_args=('**UPLOADING:**\n', edit, time.time())
+                    )
                     if msg.pinned_message:
                         try:
                             await safe_repo.pin(both_sides=True)
                         except Exception as e:
                             await safe_repo.pin()
-                  #  await safe_repo.copy(LOG_GROUP)
+                    # تم تعطيل النسخ إلى LOG_GROUP
+                    # await safe_repo.copy(LOG_GROUP)
                     await edit.delete()
-                    os.remove(file) # Remove file after direct upload
+                    os.remove(file)  # Remove file after direct upload
                     return
 
                 # تعديل الشرط هنا: السؤال عن التقسيم فقط إذا لم يكن في وضع الباتش
@@ -223,16 +233,15 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message, is_batch_mode=
                         'width': width,
                         'height': height,
                         'duration': duration,
-                        'thumb_path': original_thumb_path, # تمرير الصورة المصغرة الأصلية هنا
+                        'thumb_path': original_thumb_path,  # تمرير الصورة المصغرة الأصلية هنا
                         'log_group': LOG_GROUP,
                         'chatx': chatx
                     }
-                    await app.edit_message_text(sender, edit_id, "Video is longer than 2 minutes. How many parts do you want to split it into? (Reply with a number)") # تم تعديل الرسالة لتعكس الدقيقتين
-                    return # Stop processing here, wait for user reply in handle_split_reply
-                else: # إذا كان في وضع الباتش، يتم رفعه كجزء واحد تلقائياً
-                    await app.edit_message_text(sender, edit_id, "Video is longer than 2 minutes. Uploading as single part in batch mode...") # تم تعديل الرسالة لتعكس الدقيقتين
-                    # رفع الفيديو كجزء واحد مباشرة في وضع الباتش (يمكنك تعديل هذا الجزء إذا كنت تريد سلوكاً مختلفاً)
-                    
+                    await app.edit_message_text(sender, edit_id, "Video is longer than 2 minutes. How many parts do you want to split it into? (Reply with a number)")
+                    return  # Stop processing here, wait for user reply in handle_split_reply
+                else:  # إذا كان في وضع الباتش، يتم رفعه كجزء واحد تلقائياً
+                    await app.edit_message_text(sender, edit_id, "Video is longer than 2 minutes. Uploading as single part in batch mode...")
+                    try:
                         safe_repo = await app.send_video(
                             chat_id=sender,
                             video=file,
@@ -241,28 +250,29 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message, is_batch_mode=
                             height=height,
                             width=width,
                             duration=duration,
-                            thumb=original_thumb_path, # استخدام الصورة المصغرة الأصلية هنا
+                            thumb=original_thumb_path,
                             progress=progress_bar,
                             progress_args=(
-                            '**__Uploading...__**\n',
-                            edit,
-                            time.time()
+                                '**__Uploading...__**\n',
+                                edit,
+                                time.time()
                             )
-                           )
+                        )
                         if msg.pinned_message:
                             try:
                                 await safe_repo.pin(both_sides=True)
                             except Exception as e:
                                 await safe_repo.pin()
-                       # await safe_repo.copy(LOG_GROUP)
-                   # except:
-                        #await app.edit_message_text(sender, edit_id, "The bot is not an admin in the specified chat...")
+                        # تم تعطيل النسخ إلى LOG_GROUP
+                        # await safe_repo.copy(LOG_GROUP)
+                    except:
+                        await app.edit_message_text(sender, edit_id, "The bot is not an admin in the specified chat...")
                     os.remove(file)
                     await edit.delete()
                     return
 
             elif msg.media == MessageMediaType.PHOTO:
-                await edit.edit("**`Uploading photo...`")
+                await edit.edit("**Uploading photo...")
                 delete_words = load_delete_words(sender)
                 custom_caption = get_user_caption_preference(sender)
                 original_caption = msg.caption if msg.caption else ''
@@ -287,7 +297,8 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message, is_batch_mode=
                         await safe_repo.pin(both_sides=True)
                     except Exception as e:
                         await safe_repo.pin()
-                #await safe_repo.copy(LOG_GROUP)
+                # تم تعطيل النسخ إلى LOG_GROUP
+                # await safe_repo.copy(LOG_GROUP)
             else:
                 thumb_path = thumbnail(chatx)
                 delete_words = load_delete_words(sender)
@@ -316,9 +327,9 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message, is_batch_mode=
                         thumb=thumb_path,
                         progress=progress_bar,
                         progress_args=(
-                        '**`Uploading...`**\n',
-                        edit,
-                        time.time()
+                            '**Uploading...**\n',
+                            edit,
+                            time.time()
                         )
                     )
                     if msg.pinned_message:
@@ -326,8 +337,8 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message, is_batch_mode=
                             await safe_repo.pin(both_sides=True)
                         except Exception as e:
                             await safe_repo.pin()
-
-                   # await safe_repo.copy(LOG_GROUP)
+                    # تم تعطيل النسخ إلى LOG_GROUP
+                    # await safe_repo.copy(LOG_GROUP)
                 except:
                     await app.edit_message_text(sender, edit_id, "The bot is not an admin in the specified chat.")
 
@@ -339,7 +350,7 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message, is_batch_mode=
             await app.edit_message_text(sender, edit_id, "Have you joined the channel?")
             return
         except Exception as e:
-            await app.edit_message_text(sender, edit_id, f'Failed to save: `{msg_link}`\n\nError: {str(e)}')
+            await app.edit_message_text(sender, edit_id, f'Failed to save: {msg_link}\n\nError: {str(e)}')
 
     else:
         edit = await app.edit_message_text(sender, edit_id, "Cloning...")
@@ -348,7 +359,7 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message, is_batch_mode=
             await copy_message_with_chat_id(app, sender, chat, msg_id)
             await edit.delete()
         except Exception as e:
-            await app.edit_message_text(sender, edit_id, f'Failed to save: `{msg_link}`\n\nError: {str(e)}')
+            await app.edit_message_text(sender, edit_id, f'Failed to save: {msg_link}\n\nError: {str(e)}')
 
 
 async def copy_message_with_chat_id(client, sender, chat_id, message_id):
@@ -388,11 +399,11 @@ async def copy_message_with_chat_id(client, sender, chat_id, message_id):
             # Use copy_message if there is no media
             result = await client.copy_message(target_chat_id, chat_id, message_id)
 
-        # Attempt to copy the result to the LOG_GROUP
-        try:
-            await result.copy(LOG_GROUP)
-        except Exception:
-            pass
+        # تم تعطيل النسخ إلى LOG_GROUP
+        # try:
+        #     await result.copy(LOG_GROUP)
+        # except Exception:
+        #     pass
 
         if msg.pinned_message:
             try:
@@ -463,6 +474,7 @@ def load_delete_words(user_id):
     except Exception as e:
         print(f"Error loading delete words: {e}")
         return set()
+
 
 def save_delete_words(user_id, delete_words):
     """
