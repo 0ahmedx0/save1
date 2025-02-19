@@ -96,9 +96,9 @@ async def upload_video_parts(app, sender, edit_id, output_dir, msg, caption, wid
                     await safe_repo.pin(both_sides=True)
                 except Exception as e:
                     await safe_repo.pin()
-            await safe_repo.copy(log_group)
-        except:
-            await app.edit_message_text(sender, edit_id, f"Error uploading {part_file}. Bot might not be admin in the chat...")
+            #await safe_repo.copy(log_group)
+       # except:
+           # await app.edit_message_text(sender, edit_id, f"Error uploading {part_file}. Bot might not be admin in the chat...")
         finally:
             os.remove(part_path)
             if part_thumb_path and os.path.exists(part_thumb_path):
@@ -138,7 +138,7 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message, is_batch_mode=
                             await safe_repo.pin(both_sides=True)
                         except Exception as e:
                             await safe_repo.pin()
-                    await safe_repo.copy(LOG_GROUP)
+                   # await safe_repo.copy(LOG_GROUP)
                     await edit.delete()
                     return
             if not msg.media:
@@ -151,7 +151,7 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message, is_batch_mode=
                             await safe_repo.pin(both_sides=True)
                         except Exception as e:
                             await safe_repo.pin()
-                    await safe_repo.copy(LOG_GROUP)
+                  #  await safe_repo.copy(LOG_GROUP)
                     await edit.delete()
                     return
 
@@ -206,7 +206,7 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message, is_batch_mode=
                             await safe_repo.pin(both_sides=True)
                         except Exception as e:
                             await safe_repo.pin()
-                    await safe_repo.copy(LOG_GROUP)
+                  #  await safe_repo.copy(LOG_GROUP)
                     await edit.delete()
                     os.remove(file) # Remove file after direct upload
                     return
@@ -253,9 +253,9 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message, is_batch_mode=
                                 await safe_repo.pin(both_sides=True)
                             except Exception as e:
                                 await safe_repo.pin()
-                        await safe_repo.copy(LOG_GROUP)
-                    except:
-                        await app.edit_message_text(sender, edit_id, "The bot is not an admin in the specified chat...")
+                       # await safe_repo.copy(LOG_GROUP)
+                   # except:
+                        #await app.edit_message_text(sender, edit_id, "The bot is not an admin in the specified chat...")
                     os.remove(file)
                     await edit.delete()
                     return
@@ -286,7 +286,7 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message, is_batch_mode=
                         await safe_repo.pin(both_sides=True)
                     except Exception as e:
                         await safe_repo.pin()
-                await safe_repo.copy(LOG_GROUP)
+                #await safe_repo.copy(LOG_GROUP)
             else:
                 thumb_path = thumbnail(chatx)
                 delete_words = load_delete_words(sender)
@@ -326,7 +326,7 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message, is_batch_mode=
                         except Exception as e:
                             await safe_repo.pin()
 
-                    await safe_repo.copy(LOG_GROUP)
+                   # await safe_repo.copy(LOG_GROUP)
                 except:
                     await app.edit_message_text(sender, edit_id, "The bot is not an admin in the specified chat.")
 
