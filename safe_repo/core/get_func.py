@@ -58,14 +58,15 @@ async def upload_video_parts(app, sender, edit_id, output_dir, msg, caption, wid
     def get_part_number(filename):
         """Extracts the part number from the filename."""
         try:
-            return int(filename.replace("part", "").replace(".mp4", "").split('.')[0]) # استخراج الرقم وتحويله إلى عدد صحيح
+            return int(filename.replace("part", "").replace(".mp4", "").split('.')[0])  # استخراج الرقم وتحويله إلى عدد صحيح
         except ValueError:
             return 0  # في حالة وجود أسماء ملفات غير متوقعة
 
     part_files = [f for f in os.listdir(output_dir) if f.startswith("part") and f.endswith(".mp4")]
-    for part_file in sorted(part_files, key=get_part_number): # استخدام مفتاح ترتيب مخصص هنا
+    for part_file in sorted(part_files, key=get_part_number):  # استخدام مفتاح ترتيب مخصص هنا
         part_path = os.path.join(output_dir, part_file)
         part_thumb_path = None
+        try:
             # استخراج بيانات الجزء من الفيديو للحصول على المدة الصحيحة
             part_metadata = video_metadata(part_path)
             part_duration = part_metadata['duration']
@@ -85,23 +86,24 @@ async def upload_video_parts(app, sender, edit_id, output_dir, msg, caption, wid
                 thumb=part_thumb_path,
                 progress=progress_bar,
                 progress_args=(
-                f'**__Uploading {part_file}...__**\n',
-                edit_id,
-                time.time()
+                    f'**__Uploading {part_file}...__**\n',
+                    edit_id,
+                    time.time()
                 )
-               )
+            )
             if msg.pinned_message:
                 try:
                     await safe_repo.pin(both_sides=True)
                 except Exception as e:
                     await safe_repo.pin()
             #await safe_repo.copy(log_group)
-       # except:
-           # await app.edit_message_text(sender, edit_id, f"Error uploading {part_file}. Bot might not be admin in the chat...")
+        except Exception as e:
+            await app.edit_message_text(sender, edit_id, f"Error uploading {part_file}. Bot might not be admin in the chat...")
         finally:
             os.remove(part_path)
             if part_thumb_path and os.path.exists(part_thumb_path):
                 os.remove(part_thumb_path)
+
 
 async def get_msg(userbot, sender, edit_id, msg_link, i, message, is_batch_mode=False): # إضافة الوسيط الجديد is_batch_mode بقيمة افتراضية False
     edit = ""
