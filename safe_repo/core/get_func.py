@@ -98,8 +98,10 @@ async def upload_video_parts(app, sender, edit_id, output_dir, msg, caption, wid
                     await safe_repo.pin()
             #await safe_repo.copy(log_group)
        # except:
+         except Exception as e:
+             pass
            # await app.edit_message_text(sender, edit_id, f"Error uploading {part_file}. Bot might not be admin in the chat...")
-        #finally:
+        finally:
             os.remove(part_path)
             if part_thumb_path and os.path.exists(part_thumb_path):
                 os.remove(part_thumb_path)
