@@ -655,7 +655,7 @@ async def save_thumbnail(event):
 @gf.on(events.NewMessage(func=lambda e: e.sender_id in pending_video_splits))
 async def handle_split_reply(event):
     user_id = event.sender_id
-    if not event.reply_to_msg_id: # Ensure it's a direct reply to the bot's question
+    if not event.reply_to_msg_id:  # Ensure it's a direct reply to the bot's question
         return
 
     if event.reply_to_msg_id:
@@ -665,7 +665,10 @@ async def handle_split_reply(event):
                 await event.respond("Please enter a positive number of parts.")
                 return
 
-            split_data = pending_video_splits.pop(user_id) # Get the stored data and remove from pending
+            # حذف رسالة المستخدم التي تحتوي على عدد الأجزاء
+            await event.delete()
+
+            split_data = pending_video_splits.pop(user_id)  # Get the stored data and remove from pending
             file_path = split_data['file_path']
             edit_id = split_data['edit_id']
             sender = split_data['sender']
@@ -674,27 +677,30 @@ async def handle_split_reply(event):
             width = split_data['width']
             height = split_data['height']
             duration = split_data['duration']
-            original_thumb_path = split_data['thumb_path'] # تم التغيير هنا لاستخدام original_thumb_path
+            original_thumb_path = split_data['thumb_path']  # تم التغيير هنا لاستخدام original_thumb_path
             log_group = split_data['log_group']
             chatx = split_data['chatx']
 
             await app.edit_message_text(sender, edit_id, f"Splitting video into {num_parts} parts...")
-            temp_dir = tempfile.TemporaryDirectory() # Create temp dir for parts
+            temp_dir = tempfile.TemporaryDirectory()  # Create temp dir for parts
             try:
                 await split_video_ffmpeg(file_path, num_parts, temp_dir.name)
                 await app.edit_message_text(sender, edit_id, "Uploading video parts...")
-                await upload_video_parts(app, sender, edit_id, temp_dir.name, msg, caption, width, height, duration, original_thumb_path, log_group) # تم التغيير هنا لتمرير original_thumb_path
-                await app.edit_message_text(sender, edit_id, "Video parts uploaded successfully!")
+                await upload_video_parts(app, sender, edit_id, temp_dir.name, msg, caption, width, height, duration, original_thumb_path, log_group)  # تم التغيير هنا لتمرير original_thumb_path
+                # تعديل: حفظ رسالة النجاح وحذفها بعد 10 ثواني
+                success_msg = await app.edit_message_text(sender, edit_id, "Video parts uploaded successfully!")
+                await asyncio.sleep(10)
+                await success_msg.delete()
             except Exception as split_err:
                 await app.edit_message_text(sender, edit_id, f"Error splitting or uploading video parts: {split_err}")
             finally:
-                temp_dir.cleanup() # Cleanup temp directory
-                os.remove(file_path) # Remove original file
+                temp_dir.cleanup()  # Cleanup temp directory
+                os.remove(file_path)  # Remove original file
 
         except ValueError:
             await event.respond("Invalid number of parts. Please reply with a number.")
         except KeyError:
-            pass # Ignore if no pending split request for this user (might be timed out or cancelled)
+            pass  # Ignore if no pending split request for this user (might be timed out or cancelled)
 
 
 @gf.on(events.NewMessage)
