@@ -224,7 +224,6 @@ async def screenshot(video, duration, sender):
     time_stamp = hhmmss(get_safe_timestamp(duration))
     out = f"{sender}_thumb_{time_stamp}.jpg"  # Unique name for each thumbnail
 
-    # Get video metadata
     metadata = video_metadata(video)
     width = metadata['width']
     height = metadata['height']
@@ -235,18 +234,17 @@ async def screenshot(video, duration, sender):
     # Define a standard resolution based on aspect ratio
     if aspect_ratio > 1.77:  # Wider than 16:9
         output_width = 1280
-        output_height = int(1280 / aspect_ratio)
+        output_height = 720
     elif aspect_ratio < 1.33:  # Narrower than 4:3
         output_width = 640
-        output_height = int(640 / aspect_ratio)
+        output_height = 480
     else:  # Standard 16:9 or 4:3
         output_width = 1280
-        output_height = int(1280 / aspect_ratio)
+        output_height = 720
 
-    # Use ffmpeg to capture the thumbnail with the correct aspect ratio
     cmd = [
         "ffmpeg",
-        "-ss", f"{time_stamp}",  # Capture at the middle of the video
+        "-ss", f"{time_stamp}",
         "-i", f"{video}",
         "-vf", f"scale={output_width}:{output_height}:force_original_aspect_ratio=decrease,pad={output_width}:{output_height}:(ow-iw)/2:(oh-ih)/2",
         "-frames:v", "1",
