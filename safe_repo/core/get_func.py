@@ -53,90 +53,77 @@ async def split_video_ffmpeg(input_file, num_parts, output_dir):
 
         # يمكنك هنا طباعة أو استخدام `part_duration` للتأكد من أنها صحيحة
 
-async def upload_video_parts(app, sender, edit_id, output_dir, msg, caption, width, height, duration, original_thumb_path, log_group):
-    """Uploads video parts from the specified directory in sequential order and sends them as albums."""
+async def upload_video_parts_as_album(app, sender, edit_id, output_dir, msg, caption, width, height, duration, original_thumb_path, log_group):
+    """Uploads video parts as an album."""
     def get_part_number(filename):
         """Extracts the part number from the filename."""
         try:
-            return int(filename.replace("part", "").replace(".mp4", "").split('.')[0])  # استخراج الرقم وتحويله إلى عدد صحيح
+            return int(filename.replace("part", "").replace(".mp4", "").split('.')[0])  # Extract part number
         except ValueError:
-            return 0  # في حالة وجود أسماء ملفات غير متوقعة
+            return 0  # In case of unexpected filenames
 
     part_files = [f for f in os.listdir(output_dir) if f.startswith("part") and f.endswith(".mp4")]
-    media_group = []  # قائمة لتخزين الأجزاء المرفوعة
-    uploaded_files = []  # قائمة لتخزين المسارات المؤقتة للملفات المرفوعة
+    media_group = []  # List to store media for the album
+    part_thumb_paths = []  # To track thumbnail paths for cleanup
 
-    for part_file in sorted(part_files, key=get_part_number):  # استخدام مفتاح ترتيب مخصص هنا
+    for part_file in sorted(part_files, key=get_part_number):  # Sort parts by number
         part_path = os.path.join(output_dir, part_file)
-        part_thumb_path = None
         try:
-            # استخراج بيانات الجزء من الفيديو للحصول على المدة الصحيحة
+            # Extract metadata for the part
             part_metadata = video_metadata(part_path)
             part_duration = part_metadata['duration']
             part_width = part_metadata['width']
             part_height = part_metadata['height']
 
+            # Generate thumbnail for the part
             part_thumb_path = await screenshot(part_path, part_duration, sender)
+            part_thumb_paths.append(part_thumb_path)
 
-            # رفع الجزء
-            safe_repo = await app.send_video(
-                chat_id=sender,
-                video=part_path,
-                caption=f"{caption} \n\n **{part_file}**",
-                supports_streaming=True,
-                height=part_height,
-                width=part_width,
-                duration=part_duration,
-                thumb=part_thumb_path,
-                progress=progress_bar,
-                progress_args=(
-                    f'**__Uploading {part_file}...__**\n',
-                    edit_id,
-                    time.time()
-                )
-            )
-
-            # إضافة الجزء إلى قائمة الألبوم
+            # Add the part to the media group
             media_group.append(
-                pyrogram.types.InputMediaVideo(
-                    media=safe_repo.video.file_id,
-                    caption=f"{caption} \n\n **{part_file}**",
-                    width=part_width,
-                    height=part_height,
-                    duration=part_duration,
-                    thumb=part_thumb_path
-                )
+                {
+                    "type": "video",
+                    "media": part_path,
+                    "caption": f"{caption} \n\n **{part_file}**" if not media_group else None,  # Caption only for the first part
+                    "thumb": part_thumb_path,
+                    "width": part_width,
+                    "height": part_height,
+                    "duration": part_duration,
+                }
             )
 
-            # إضافة المسار المؤقت للجزء إلى قائمة الحذف
-            uploaded_files.append(part_path)
-            if part_thumb_path:
-                uploaded_files.append(part_thumb_path)
-
-            if msg.pinned_message:
-                try:
-                    await safe_repo.pin(both_sides=True)
-                except Exception as e:
-                    await safe_repo.pin()
-            await safe_repo.copy(log_group)
         except Exception as e:
-            await app.edit_message_text(sender, edit_id, f"Error uploading {part_file}. Bot might not be admin in the chat...")
+            await app.edit_message_text(sender, edit_id, f"Error processing {part_file}: {e}")
+            continue
 
-    # إرسال الأجزاء كألبوم
-    if media_group:
-        try:
-            # تقسيم الألبوم إذا كان يحتوي على أكثر من 10 أجزاء (حد Telegram)
-            for i in range(0, len(media_group), 10):
-                album_chunk = media_group[i:i + 10]
-                await app.send_media_group(chat_id=sender, media=album_chunk)
-        except Exception as e:
-            await app.send_message(chat_id=sender, text=f"Failed to send album: {e}")
+    # Send the media group as an album
+    try:
+        safe_repo = await app.send_media_group(
+            chat_id=sender,
+            media=media_group
+        )
+        if msg.pinned_message:
+            try:
+                await safe_repo[0].pin(both_sides=True)  # Pin the first message in the album
+            except Exception as e:
+                await safe_repo[0].pin()
 
-    # حذف الملفات بعد إرسال الألبوم
-    for file_path in uploaded_files:
-        if os.path.exists(file_path):
-            os.remove(file_path)
+        # Copy the album to the log group
+        await app.copy_media_group(chat_id=log_group, from_chat_id=sender, message_id=safe_repo[0].id)
 
+    except Exception as e:
+        await app.edit_message_text(sender, edit_id, f"Error sending album: {e}")
+
+    finally:
+        # Clean up temporary files
+        for part_file in part_files:
+            part_path = os.path.join(output_dir, part_file)
+            if os.path.exists(part_path):
+                os.remove(part_path)
+
+        for thumb_path in part_thumb_paths:
+            if thumb_path and os.path.exists(thumb_path):
+                os.remove(thumb_path)
 async def get_msg(userbot, sender, edit_id, msg_link, i, message, is_batch_mode=False): # إضافة الوسيط الجديد is_batch_mode بقيمة افتراضية False
     edit = ""
     chat = ""
