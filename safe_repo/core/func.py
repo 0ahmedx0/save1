@@ -13,7 +13,9 @@ from pyrogram.errors import FloodWait, InviteHashInvalid, InviteHashExpired, Use
 from datetime import datetime as dt
 import asyncio, subprocess, re, os, time
 
-
+def get_safe_timestamp(duration):
+    """Returns a safe timestamp to capture a thumbnail."""
+    return max(5, min(duration - 5, duration / 2))
 
 async def chk_user(message, user_id):
     user = await premium_users()
