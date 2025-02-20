@@ -66,14 +66,14 @@ async def upload_video_parts(app, sender, edit_id, output_dir, msg, caption, wid
         for i in range(0, len(lst), n):
             yield lst[i:i+n]
 
-    # الحصول على قائمة الملفات المُرتبة
+    # Get sorted list of part files
     part_files = [f for f in os.listdir(output_dir) if f.startswith("part") and f.endswith(".mp4")]
     sorted_parts = sorted(part_files, key=get_part_number)
 
-    # تقسيم الملفات إلى دفعات (كل دفعة تحتوي على 10 أجزاء كحد أقصى)
+    # Process in batches of 10 files per album
     for batch in chunk_list(sorted_parts, 10):
         media_group = []
-        thumb_paths = []  # لتخزين مسارات الصور المصغرة للتنظيف لاحقاً
+        thumb_paths = []  # To store thumbnail paths for cleanup
         for idx, part_file in enumerate(batch):
             part_path = os.path.join(output_dir, part_file)
             part_metadata = video_metadata(part_path)
@@ -81,7 +81,7 @@ async def upload_video_parts(app, sender, edit_id, output_dir, msg, caption, wid
             part_width = part_metadata['width']
             part_height = part_metadata['height']
 
-            # التقاط صورة مصغرة للجزء
+            # Capture thumbnail for the part
             thumb_path = await screenshot(part_path, part_duration, sender)
             thumb_paths.append(thumb_path)
             
@@ -93,7 +93,7 @@ async def upload_video_parts(app, sender, edit_id, output_dir, msg, caption, wid
                 duration=part_duration,
                 thumb=thumb_path
             )
-            # إضافة التعليق للجزء الأول من الدفعة فقط
+            # Add caption to the first media in the batch if provided
             if idx == 0 and caption:
                 media.caption = f"{caption} \n\n **{part_file}**"
             media_group.append(media)
@@ -101,9 +101,7 @@ async def upload_video_parts(app, sender, edit_id, output_dir, msg, caption, wid
         try:
             sent_msgs = await app.send_media_group(
                 chat_id=sender,
-                media=media_group,
-                progress=progress_bar,
-                progress_args=(f'**__Uploading album...__**\n', edit_id, time.time())
+                media=media_group
             )
             if msg.pinned_message:
                 try:
@@ -114,15 +112,15 @@ async def upload_video_parts(app, sender, edit_id, output_dir, msg, caption, wid
         except Exception as e:
             await app.edit_message_text(sender, edit_id, f"Error uploading album for parts {batch}: {str(e)}")
         finally:
-            # حذف الملفات المرفوعة من هذه الدفعة
+            # Cleanup: remove part files and thumbnails
             for part_file in batch:
                 part_path = os.path.join(output_dir, part_file)
                 if os.path.exists(part_path):
                     os.remove(part_path)
-            # حذف الصور المصغرة المُنشأة
             for thumb_path in thumb_paths:
                 if thumb_path and os.path.exists(thumb_path):
                     os.remove(thumb_path)
+
                 
 async def get_msg(userbot, sender, edit_id, msg_link, i, message, is_batch_mode=False):
     edit = ""
