@@ -13,6 +13,13 @@ from pyrogram.errors import FloodWait, InviteHashInvalid, InviteHashExpired, Use
 from datetime import datetime as dt
 import asyncio, subprocess, re, os, time
 
+
+def sanitize_filename(filename):
+    """
+    Cleans up a filename by removing or replacing invalid characters.
+    """
+    # Replace invalid characters with underscores
+    return re.sub(r'[^\w\-_.]', '_', filename)
 def get_safe_timestamp(duration):
     """Returns a safe timestamp to capture a thumbnail."""
     return max(5, min(duration - 5, duration / 2))
