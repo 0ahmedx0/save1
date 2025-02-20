@@ -224,8 +224,9 @@ async def screenshot(video, duration, sender):
 
     cmd = [
         "ffmpeg",
-        "-ss", f"{time_stamp}",
+        "-ss", f"{time_stamp}",  # Capture at the middle of the video
         "-i", f"{video}",
+        "-vf", "scale=1280:720",  # Ensure consistent resolution (16:9 aspect ratio)
         "-frames:v", "1",
         f"{out}",
         "-y"
