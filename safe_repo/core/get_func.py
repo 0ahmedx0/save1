@@ -95,22 +95,29 @@ async def upload_video_parts(app, sender, edit_id, output_dir, msg, caption, wid
             files_to_remove.append((part_path, part_thumb_path))
         except Exception as e:
             await app.edit_message_text(sender, edit_id, f"Error processing {part_file}. Bot might not be admin in the chat...")
-    
-    # رفع الألبوم في رسالة واحدة
+
+    # دالة لتقسيم القائمة إلى مجموعات فرعية كل مجموعة تحتوي على n عناصر كحد أقصى
+    def chunk_list(lst, n):
+        for i in range(0, len(lst), n):
+            yield lst[i:i+n]
+
+    # رفع الألبوم على دفعات إذا كان عدد أجزاء الفيديو يتجاوز 10
     try:
         if media_group:
-            safe_repos = await app.send_media_group(
-                chat_id=sender,
-                media=media_group
-            )
-            # تطبيق العمليات الإضافية (تثبيت الرسالة والنسخ إلى مجموعة السجلات) لكل رسالة في الألبوم
-            for safe_repo in safe_repos:
-                if msg.pinned_message:
-                    try:
-                        await safe_repo.pin(both_sides=True)
-                    except Exception as e:
-                        await safe_repo.pin()
-               # await safe_repo.copy(log_group)
+            for group in chunk_list(media_group, 10):
+                safe_repos = await app.send_media_group(
+                    chat_id=sender,
+                    media=group
+                )
+                # تطبيق العمليات الإضافية (تثبيت الرسالة والنسخ إلى مجموعة السجلات) لكل رسالة في الألبوم
+                for safe_repo in safe_repos:
+                    if msg.pinned_message:
+                        try:
+                            await safe_repo.pin(both_sides=True)
+                        except Exception as e:
+                            await safe_repo.pin()
+                    # يمكن تفعيل النسخ إلى مجموعة السجلات إذا لزم الأمر:
+                    # await safe_repo.copy(log_group)
         else:
             await app.edit_message_text(sender, edit_id, "No video parts found to upload.")
     except Exception as e:
@@ -127,6 +134,7 @@ async def upload_video_parts(app, sender, edit_id, output_dir, msg, caption, wid
                     os.remove(thumb_path)
                 except Exception:
                     pass
+
 
 async def get_msg(userbot, sender, edit_id, msg_link, i, message, is_batch_mode=False): # إضافة الوسيط الجديد is_batch_mode بقيمة افتراضية False
     edit = ""
