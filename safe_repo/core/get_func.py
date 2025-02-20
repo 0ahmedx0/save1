@@ -123,9 +123,13 @@ async def upload_video_parts(app, sender, edit_id, output_dir, msg, caption, wid
     # إرسال الأجزاء كألبوم
     if media_group:
         try:
-            await app.send_media_group(chat_id=sender, media=media_group)
+            # تقسيم الألبوم إذا كان يحتوي على أكثر من 10 أجزاء (حد Telegram)
+            for i in range(0, len(media_group), 10):
+                album_chunk = media_group[i:i + 10]
+                await app.send_media_group(chat_id=sender, media=album_chunk)
         except Exception as e:
             await app.send_message(chat_id=sender, text=f"Failed to send album: {e}")
+
 
 async def get_msg(userbot, sender, edit_id, msg_link, i, message, is_batch_mode=False): # إضافة الوسيط الجديد is_batch_mode بقيمة افتراضية False
     edit = ""
