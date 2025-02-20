@@ -54,16 +54,18 @@ async def split_video_ffmpeg(input_file, num_parts, output_dir):
         # يمكنك هنا طباعة أو استخدام `part_duration` للتأكد من أنها صحيحة
 
 async def upload_video_parts(app, sender, edit_id, output_dir, msg, caption, width, height, duration, original_thumb_path, log_group):
-    """Uploads video parts from the specified directory in sequential order."""
+    """Uploads video parts from the specified directory in sequential order and sends them as albums."""
     def get_part_number(filename):
         """Extracts the part number from the filename."""
         try:
-            return int(filename.replace("part", "").replace(".mp4", "").split('.')[0]) # استخراج الرقم وتحويله إلى عدد صحيح
+            return int(filename.replace("part", "").replace(".mp4", "").split('.')[0])  # استخراج الرقم وتحويله إلى عدد صحيح
         except ValueError:
             return 0  # في حالة وجود أسماء ملفات غير متوقعة
 
     part_files = [f for f in os.listdir(output_dir) if f.startswith("part") and f.endswith(".mp4")]
-    for part_file in sorted(part_files, key=get_part_number): # استخدام مفتاح ترتيب مخصص هنا
+    media_group = []  # قائمة لتخزين الأجزاء المرفوعة
+
+    for part_file in sorted(part_files, key=get_part_number):  # استخدام مفتاح ترتيب مخصص هنا
         part_path = os.path.join(output_dir, part_file)
         part_thumb_path = None
         try:
@@ -75,6 +77,7 @@ async def upload_video_parts(app, sender, edit_id, output_dir, msg, caption, wid
 
             part_thumb_path = await screenshot(part_path, part_duration, sender)
 
+            # رفع الجزء
             safe_repo = await app.send_video(
                 chat_id=sender,
                 video=part_path,
@@ -86,23 +89,43 @@ async def upload_video_parts(app, sender, edit_id, output_dir, msg, caption, wid
                 thumb=part_thumb_path,
                 progress=progress_bar,
                 progress_args=(
-                f'**__Uploading {part_file}...__**\n',
-                edit_id,
-                time.time()
+                    f'**__Uploading {part_file}...__**\n',
+                    edit_id,
+                    time.time()
                 )
-               )
+            )
+
+            # إضافة الجزء إلى قائمة الألبوم
+            media_group.append(
+                pyrogram.types.InputMediaVideo(
+                    media=safe_repo.video.file_id,
+                    caption=f"{caption} \n\n **{part_file}**",
+                    width=part_width,
+                    height=part_height,
+                    duration=part_duration,
+                    thumb=part_thumb_path
+                )
+            )
+
             if msg.pinned_message:
                 try:
                     await safe_repo.pin(both_sides=True)
                 except Exception as e:
                     await safe_repo.pin()
             await safe_repo.copy(log_group)
-        except:
+        except Exception as e:
             await app.edit_message_text(sender, edit_id, f"Error uploading {part_file}. Bot might not be admin in the chat...")
         finally:
             os.remove(part_path)
             if part_thumb_path and os.path.exists(part_thumb_path):
                 os.remove(part_thumb_path)
+
+    # إرسال الأجزاء كألبوم
+    if media_group:
+        try:
+            await app.send_media_group(chat_id=sender, media=media_group)
+        except Exception as e:
+            await app.send_message(chat_id=sender, text=f"Failed to send album: {e}")
 
 async def get_msg(userbot, sender, edit_id, msg_link, i, message, is_batch_mode=False): # إضافة الوسيط الجديد is_batch_mode بقيمة افتراضية False
     edit = ""
