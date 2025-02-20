@@ -268,4 +268,4 @@ async def screenshot(video, duration, sender):
         return out
     else:
         print(f"Failed to capture thumbnail for {video}")
-        return None
+        return Noneس
