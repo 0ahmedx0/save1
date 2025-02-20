@@ -64,6 +64,7 @@ async def upload_video_parts(app, sender, edit_id, output_dir, msg, caption, wid
 
     part_files = [f for f in os.listdir(output_dir) if f.startswith("part") and f.endswith(".mp4")]
     media_group = []  # قائمة لتخزين الأجزاء المرفوعة
+    uploaded_files = []  # قائمة لتخزين المسارات المؤقتة للملفات المرفوعة
 
     for part_file in sorted(part_files, key=get_part_number):  # استخدام مفتاح ترتيب مخصص هنا
         part_path = os.path.join(output_dir, part_file)
@@ -107,6 +108,11 @@ async def upload_video_parts(app, sender, edit_id, output_dir, msg, caption, wid
                 )
             )
 
+            # إضافة المسار المؤقت للجزء إلى قائمة الحذف
+            uploaded_files.append(part_path)
+            if part_thumb_path:
+                uploaded_files.append(part_thumb_path)
+
             if msg.pinned_message:
                 try:
                     await safe_repo.pin(both_sides=True)
@@ -115,10 +121,6 @@ async def upload_video_parts(app, sender, edit_id, output_dir, msg, caption, wid
             await safe_repo.copy(log_group)
         except Exception as e:
             await app.edit_message_text(sender, edit_id, f"Error uploading {part_file}. Bot might not be admin in the chat...")
-        finally:
-            os.remove(part_path)
-            if part_thumb_path and os.path.exists(part_thumb_path):
-                os.remove(part_thumb_path)
 
     # إرسال الأجزاء كألبوم
     if media_group:
@@ -130,6 +132,10 @@ async def upload_video_parts(app, sender, edit_id, output_dir, msg, caption, wid
         except Exception as e:
             await app.send_message(chat_id=sender, text=f"Failed to send album: {e}")
 
+    # حذف الملفات بعد إرسال الألبوم
+    for file_path in uploaded_files:
+        if os.path.exists(file_path):
+            os.remove(file_path)
 
 async def get_msg(userbot, sender, edit_id, msg_link, i, message, is_batch_mode=False): # إضافة الوسيط الجديد is_batch_mode بقيمة افتراضية False
     edit = ""
