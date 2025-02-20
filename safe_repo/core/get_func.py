@@ -57,12 +57,13 @@ from pyrogram.types import InputMediaVideo  # تأكد من وجود هذا ال
 
 async def upload_video_parts(app, sender, edit_id, output_dir, msg, caption, width, height, duration, original_thumb_path, log_group):
     """Uploads video parts from the specified directory as an album."""
+    
     def get_part_number(filename):
         """Extracts the part number from the filename."""
         try:
-            return int(filename.replace("part", "").replace(".mp4", "").split('.')[0])  # استخراج الرقم وتحويله إلى عدد صحيح
+            return int(filename.replace("part", "").replace(".mp4", "").split('.')[0])
         except ValueError:
-            return 0  # في حالة وجود أسماء ملفات غير متوقعة
+            return 0
 
     part_files = [f for f in os.listdir(output_dir) if f.startswith("part") and f.endswith(".mp4")]
     media_group = []
@@ -79,7 +80,12 @@ async def upload_video_parts(app, sender, edit_id, output_dir, msg, caption, wid
             part_width = part_metadata['width']
             part_height = part_metadata['height']
 
+            # التقاط الصورة المصغرة لكل جزء
             part_thumb_path = await screenshot(part_path, part_duration, sender)
+            # إنشاء اسم فريد للصورة المصغرة لكل جزء باستخدام اسم الملف
+            unique_thumb_path = os.path.join(output_dir, f"thumb_{os.path.splitext(part_file)[0]}.jpg")
+            os.rename(part_thumb_path, unique_thumb_path)
+            part_thumb_path = unique_thumb_path
 
             # إنشاء كائن InputMediaVideo لكل جزء
             media = InputMediaVideo(
@@ -96,12 +102,12 @@ async def upload_video_parts(app, sender, edit_id, output_dir, msg, caption, wid
         except Exception as e:
             await app.edit_message_text(sender, edit_id, f"Error processing {part_file}. Bot might not be admin in the chat...")
 
-    # دالة لتقسيم القائمة إلى مجموعات فرعية كل مجموعة تحتوي على n عناصر كحد أقصى
+    # دالة لتقسيم القائمة إلى مجموعات فرعية لا تتجاوز n عناصر لكل مجموعة
     def chunk_list(lst, n):
         for i in range(0, len(lst), n):
             yield lst[i:i+n]
 
-    # رفع الألبوم على دفعات إذا كان عدد أجزاء الفيديو يتجاوز 10
+    # رفع الألبومات على دفعات بحيث لا يتجاوز كل ألبوم 10 فيديوهات
     try:
         if media_group:
             for group in chunk_list(media_group, 10):
@@ -109,7 +115,7 @@ async def upload_video_parts(app, sender, edit_id, output_dir, msg, caption, wid
                     chat_id=sender,
                     media=group
                 )
-                # تطبيق العمليات الإضافية (تثبيت الرسالة والنسخ إلى مجموعة السجلات) لكل رسالة في الألبوم
+                # تطبيق العمليات الإضافية لكل رسالة في الألبوم المُرسل
                 for safe_repo in safe_repos:
                     if msg.pinned_message:
                         try:
