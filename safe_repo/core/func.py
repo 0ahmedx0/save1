@@ -228,7 +228,8 @@ async def screenshot(video, duration, sender):
     # Generate a unique thumbnail path for each part
     safe_timestamp = get_safe_timestamp(duration)  # Calculate a safe timestamp
     time_stamp = hhmmss(safe_timestamp)  # Convert to HH:MM:SS format
-    out = f"{sender}_thumb_{time_stamp}.jpg"  # Unique name for each thumbnail
+    out = f"{sender}_thumb_{time_stamp}.jpg"
+    out = sanitize_filename(out)  # Sanitize the filename
 
     # FFmpeg command to capture the thumbnail
     cmd = [
@@ -237,8 +238,8 @@ async def screenshot(video, duration, sender):
         "-i", f"{video}",
         "-vf", "scale=1280:720",  # Ensure consistent resolution (16:9 aspect ratio)
         "-frames:v", "1",
-        f"{out}",
-        "-y"
+        "-y",  # Overwrite output file if it exists
+        f"{out}"
     ]
 
     # Execute the FFmpeg command
