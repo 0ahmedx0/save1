@@ -53,8 +53,10 @@ async def split_video_ffmpeg(input_file, num_parts, output_dir):
 
         # يمكنك هنا طباعة أو استخدام `part_duration` للتأكد من أنها صحيحة
 
+from pyrogram.types import InputMediaVideo  # تأكد من وجود هذا الاستيراد
+
 async def upload_video_parts(app, sender, edit_id, output_dir, msg, caption, width, height, duration, original_thumb_path, log_group):
-    """Uploads video parts from the specified directory as an album with separate thumbnails for each part."""
+    """Uploads video parts from the specified directory as an album."""
     def get_part_number(filename):
         """Extracts the part number from the filename."""
         try:
@@ -63,73 +65,69 @@ async def upload_video_parts(app, sender, edit_id, output_dir, msg, caption, wid
             return 0  # في حالة وجود أسماء ملفات غير متوقعة
 
     part_files = [f for f in os.listdir(output_dir) if f.startswith("part") and f.endswith(".mp4")]
-    media_group = []  # قائمة لتخزين الوسائط الخاصة بالألبوم
-    thumb_paths = []  # قائمة لتخزين مسارات الصور المصغرة للتنظيف لاحقًا
+    media_group = []
+    files_to_remove = []  # لتخزين مسارات الملفات والصور المؤقتة لإزالتها لاحقًا
 
-    try:
-        for part_file in sorted(part_files, key=get_part_number):  # استخدام مفتاح ترتيب مخصص هنا
-            part_path = os.path.join(output_dir, part_file)
-            part_thumb_path = None
-
-            # استخراج بيانات الجزء من الفيديو للحصول على المدة الصحيحة
+    # معالجة كل جزء وتجهيزه للرفع ضمن الألبوم
+    for part_file in sorted(part_files, key=get_part_number):
+        part_path = os.path.join(output_dir, part_file)
+        part_thumb_path = None
+        try:
+            # استخراج بيانات الجزء من الفيديو للحصول على المدة والأبعاد الصحيحة
             part_metadata = video_metadata(part_path)
             part_duration = part_metadata['duration']
             part_width = part_metadata['width']
             part_height = part_metadata['height']
 
-            # إنشاء صورة مصغرة لكل جزء
             part_thumb_path = await screenshot(part_path, part_duration, sender)
-            thumb_paths.append(part_thumb_path)
 
-            # إضافة الجزء إلى مجموعة الوسائط مع صورة مصغرة منفصلة
-            media_group.append(
-                pyrogram.types.InputMediaVideo(
-                    media=part_path,
-                    caption=f"{caption} \n\n **{part_file}**" if not media_group else None,  # إضافة التسمية فقط للجزء الأول
-                    supports_streaming=True,
-                    height=part_height,
-                    width=part_width,
-                    duration=part_duration,
-                    thumb=part_thumb_path
-                )
+            # إنشاء كائن InputMediaVideo لكل جزء
+            media = InputMediaVideo(
+                media=part_path,
+                caption=f"{caption} \n\n **{part_file}**",
+                supports_streaming=True,
+                height=part_height,
+                width=part_width,
+                duration=part_duration,
+                thumb=part_thumb_path
             )
-
-        # إرسال مجموعة الوسائط كألبوم
-        safe_repo = await app.send_media_group(
-            chat_id=sender,
-            media=media_group,
-            progress=progress_bar,
-            progress_args=(
-                "**__Uploading album...__**\n",
-                edit_id,
-                time.time()
+            media_group.append(media)
+            files_to_remove.append((part_path, part_thumb_path))
+        except Exception as e:
+            await app.edit_message_text(sender, edit_id, f"Error processing {part_file}. Bot might not be admin in the chat...")
+    
+    # رفع الألبوم في رسالة واحدة
+    try:
+        if media_group:
+            safe_repos = await app.send_media_group(
+                chat_id=sender,
+                media=media_group
             )
-        )
-
-        # إذا كان هناك رسالة مثبتة، قم بتثبيت الرسالة الأولى في الألبوم
-        if msg.pinned_message:
-            try:
-                await safe_repo[0].pin(both_sides=True)
-            except Exception as e:
-                await safe_repo[0].pin()
-
-        # نسخ الألبوم إلى مجموعة السجلات
-        for message in safe_repo:
-            await message.copy(log_group)
-
+            # تطبيق العمليات الإضافية (تثبيت الرسالة والنسخ إلى مجموعة السجلات) لكل رسالة في الألبوم
+            for safe_repo in safe_repos:
+                if msg.pinned_message:
+                    try:
+                        await safe_repo.pin(both_sides=True)
+                    except Exception as e:
+                        await safe_repo.pin()
+                await safe_repo.copy(log_group)
+        else:
+            await app.edit_message_text(sender, edit_id, "No video parts found to upload.")
     except Exception as e:
-        await app.edit_message_text(sender, edit_id, f"Error uploading album. Bot might not be admin in the chat...")
+        await app.edit_message_text(sender, edit_id, f"Error uploading album: {e}")
     finally:
-        # حذف الملفات بعد الإرسال
-        for part_file in part_files:
-            part_path = os.path.join(output_dir, part_file)
-            if os.path.exists(part_path):
+        # إزالة الملفات المؤقتة بعد الرفع
+        for part_path, thumb_path in files_to_remove:
+            try:
                 os.remove(part_path)
-
-        # حذف الصور المصغرة
-        for thumb_path in thumb_paths:
+            except Exception:
+                pass
             if thumb_path and os.path.exists(thumb_path):
-                os.remove(thumb_path)
+                try:
+                    os.remove(thumb_path)
+                except Exception:
+                    pass
+
 async def get_msg(userbot, sender, edit_id, msg_link, i, message, is_batch_mode=False): # إضافة الوسيط الجديد is_batch_mode بقيمة افتراضية False
     edit = ""
     chat = ""
