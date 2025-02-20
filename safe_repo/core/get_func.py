@@ -1,3 +1,4 @@
+
 #safe_repo
 
 import asyncio
@@ -50,7 +51,7 @@ async def split_video_ffmpeg(input_file, num_parts, output_dir):
         part_metadata = video_metadata(output_file)
         part_duration = part_metadata['duration']
 
-        # يمكنك هنا طباعة أو استخدام part_duration للتأكد من أنها صحيحة
+        # يمكنك هنا طباعة أو استخدام `part_duration` للتأكد من أنها صحيحة
 
 async def upload_video_parts(app, sender, edit_id, output_dir, msg, caption, width, height, duration, original_thumb_path, log_group):
     """Uploads video parts from the specified directory in sequential order."""
@@ -260,7 +261,7 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message, is_batch_mode=
                     return
 
             elif msg.media == MessageMediaType.PHOTO:
-                await edit.edit("**Uploading photo...")
+                await edit.edit("**`Uploading photo...`")
                 delete_words = load_delete_words(sender)
                 custom_caption = get_user_caption_preference(sender)
                 original_caption = msg.caption if msg.caption else ''
@@ -314,7 +315,7 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message, is_batch_mode=
                         thumb=thumb_path,
                         progress=progress_bar,
                         progress_args=(
-                        '**Uploading...**\n',
+                        '**`Uploading...`**\n',
                         edit,
                         time.time()
                         )
@@ -337,7 +338,7 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message, is_batch_mode=
             await app.edit_message_text(sender, edit_id, "Have you joined the channel?")
             return
         except Exception as e:
-            await app.edit_message_text(sender, edit_id, f'Failed to save: {msg_link}\n\nError: {str(e)}')
+            await app.edit_message_text(sender, edit_id, f'Failed to save: `{msg_link}`\n\nError: {str(e)}')
 
     else:
         edit = await app.edit_message_text(sender, edit_id, "Cloning...")
@@ -346,7 +347,7 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message, is_batch_mode=
             await copy_message_with_chat_id(app, sender, chat, msg_id)
             await edit.delete()
         except Exception as e:
-            await app.edit_message_text(sender, edit_id, f'Failed to save: {msg_link}\n\nError: {str(e)}')
+            await app.edit_message_text(sender, edit_id, f'Failed to save: `{msg_link}`\n\nError: {str(e)}')
 
 
 async def copy_message_with_chat_id(client, sender, chat_id, message_id):
@@ -461,7 +462,6 @@ def load_delete_words(user_id):
     except Exception as e:
         print(f"Error loading delete words: {e}")
         return set()
-      
 
 def save_delete_words(user_id, delete_words):
     """
