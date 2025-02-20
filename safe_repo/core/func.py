@@ -221,32 +221,14 @@ def hhmmss(seconds):
 
 async def screenshot(video, duration, sender):
     # Generate a unique thumbnail path for each part
-    time_stamp = hhmmss(get_safe_timestamp(duration))
+    time_stamp = hhmmss(get_safe_timestamp(duration))  # Use the safe timestamp function
     out = f"{sender}_thumb_{time_stamp}.jpg"  # Unique name for each thumbnail
-
-    metadata = video_metadata(video)
-    width = metadata['width']
-    height = metadata['height']
-
-    # Calculate aspect ratio
-    aspect_ratio = width / height
-
-    # Define a standard resolution based on aspect ratio
-    if aspect_ratio > 1.77:  # Wider than 16:9
-        output_width = 1280
-        output_height = int(1280 / aspect_ratio)
-    elif aspect_ratio < 1.33:  # Narrower than 4:3
-        output_width = 640
-        output_height = int(640 / aspect_ratio)
-    else:  # Standard 16:9 or 4:3
-        output_width = 1280
-        output_height = int(1280 / aspect_ratio)
 
     cmd = [
         "ffmpeg",
         "-ss", f"{time_stamp}",  # Capture at the middle of the video
         "-i", f"{video}",
-        "-vf", f"scale={output_width}:{output_height}:force_original_aspect_ratio=decrease,pad={output_width}:{output_height}:(ow-iw)/2:(oh-ih)/2",
+        "-vf", "scale=1280:720",  # Ensure consistent resolution (16:9 aspect ratio)
         "-frames:v", "1",
         f"{out}",
         "-y"
@@ -258,9 +240,6 @@ async def screenshot(video, duration, sender):
         stderr=asyncio.subprocess.PIPE
     )
     stdout, stderr = await process.communicate()
-
-    print(f"FFmpeg STDOUT: {stdout.decode()}")
-    print(f"FFmpeg STDERR: {stderr.decode()}")
 
     if os.path.isfile(out):
         print(f"Thumbnail saved at: {out}")
