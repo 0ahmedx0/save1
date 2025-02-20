@@ -692,13 +692,24 @@ async def handle_split_reply(event):
                 await upload_video_parts(app, sender, edit_id, temp_dir.name, msg, caption, width, height, duration, original_thumb_path, log_group)  # تم التغيير هنا لتمرير original_thumb_path
                 await app.edit_message_text(sender, edit_id, "Video parts uploaded successfully!")
                 
-                # الانتظار لمدة 5 ثوانٍ قبل حذف رسالة البوت ورسالة المستخدم
+                # الانتظار لمدة 5 ثوانٍ قبل حذف الرسائل
                 await asyncio.sleep(5)
-                await app.delete_messages(sender, edit_id, revoke=True)
-                await app.delete_messages(sender, event.message_id, revoke=True)
+                # الحصول على رقم رسالة المستخدم بطريقة متوافقة مع Telethon
+                user_msg_id = getattr(event, "message_id", event.id)
+                try:
+                    await app.delete_messages(sender, edit_id, revoke=True)
+                except Exception as del_bot_msg_err:
+                    print(f"Error deleting bot's message: {del_bot_msg_err}")
+                try:
+                    await app.delete_messages(sender, user_msg_id, revoke=True)
+                except Exception as del_user_msg_err:
+                    print(f"Error deleting user's message: {del_user_msg_err}")
                 
             except Exception as split_err:
-                await app.edit_message_text(sender, edit_id, f"Error splitting or uploading video parts: {split_err}")
+                try:
+                    await app.edit_message_text(sender, edit_id, f"Error splitting or uploading video parts: {split_err}")
+                except Exception as edit_err:
+                    print(f"Error editing message after split error: {edit_err}")
             finally:
                 temp_dir.cleanup()  # تنظيف المجلد المؤقت
                 os.remove(file_path)  # حذف الملف الأصلي
@@ -706,8 +717,7 @@ async def handle_split_reply(event):
         except ValueError:
             await event.respond("Invalid number of parts. Please reply with a number.")
         except KeyError:
-            pass  # تجاهل حال عدم وجود طلب تقسيم معلق لهذا المستخدم (ربما انتهت مدته أو تم إلغاؤه)
-
+            pass  # تجاهل حال عدم وجود طلب تقسيم معلق لهذا المستخدم
 
 @gf.on(events.NewMessage)
 async def handle_user_input(event):
