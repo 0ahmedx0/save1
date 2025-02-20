@@ -12,7 +12,7 @@ import pymongo
 from pyrogram import filters
 from pyrogram.errors import ChannelBanned, ChannelInvalid, ChannelPrivate, ChatIdInvalid, ChatInvalid, PeerIdInvalid
 from pyrogram.enums import MessageMediaType
-from safe_repo.core.func import progress_bar, video_metadata, screenshot
+from safe_repo.core.func import progress_bar, video_metadata, screenshot, get_safe_timestamp
 from safe_repo.core.mongo import db
 from pyrogram.types import Message
 from config import MONGO_DB as MONGODB_CONNECTION_STRING, LOG_GROUP
