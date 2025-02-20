@@ -99,18 +99,21 @@ async def upload_video_parts(app, sender, edit_id, output_dir, msg, caption, wid
 
     # Send the media group as an album
     try:
-        safe_repo = await app.send_media_group(
-            chat_id=sender,
-            media=media_group
-        )
-        if msg.pinned_message:
-            try:
-                await safe_repo[0].pin(both_sides=True)  # Pin the first message in the album
-            except Exception as e:
-                await safe_repo[0].pin()
+        # Split into chunks of 10 if necessary
+        for i in range(0, len(media_group), 10):
+            album_chunk = media_group[i:i + 10]
+            safe_repo = await app.send_media_group(
+                chat_id=sender,
+                media=album_chunk
+            )
+            if msg.pinned_message:
+                try:
+                    await safe_repo[0].pin(both_sides=True)  # Pin the first message in the album
+                except Exception as e:
+                    await safe_repo[0].pin()
 
-        # Copy the album to the log group
-        await app.copy_media_group(chat_id=log_group, from_chat_id=sender, message_id=safe_repo[0].id)
+            # Copy the album to the log group
+            await app.copy_media_group(chat_id=log_group, from_chat_id=sender, message_id=safe_repo[0].id)
 
     except Exception as e:
         await app.edit_message_text(sender, edit_id, f"Error sending album: {e}")
