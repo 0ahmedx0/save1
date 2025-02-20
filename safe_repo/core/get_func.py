@@ -53,7 +53,7 @@ async def split_video_ffmpeg(input_file, num_parts, output_dir):
 
         # يمكنك هنا طباعة أو استخدام `part_duration` للتأكد من أنها صحيحة
 
-async def upload_video_parts_as_album(app, sender, edit_id, output_dir, msg, caption, width, height, duration, original_thumb_path, log_group):
+async def upload_video_parts(app, sender, edit_id, output_dir, msg, caption, width, height, duration, original_thumb_path, log_group):
     """Uploads video parts as an album."""
     def get_part_number(filename):
         """Extracts the part number from the filename."""
