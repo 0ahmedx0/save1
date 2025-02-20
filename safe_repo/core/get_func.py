@@ -19,6 +19,7 @@ import cv2
 from telethon import events, Button
 import re
 import tempfile
+from pyrogram.types import InputMediaVideo
 
 
 def thumbnail(sender):
