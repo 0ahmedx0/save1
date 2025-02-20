@@ -54,80 +54,56 @@ async def split_video_ffmpeg(input_file, num_parts, output_dir):
         # يمكنك هنا طباعة أو استخدام `part_duration` للتأكد من أنها صحيحة
 
 async def upload_video_parts(app, sender, edit_id, output_dir, msg, caption, width, height, duration, original_thumb_path, log_group):
-    """Uploads video parts as an album with individual thumbnails for each part."""
-    
+    """Uploads video parts from the specified directory in sequential order."""
     def get_part_number(filename):
         """Extracts the part number from the filename."""
         try:
-            return int(filename.replace("part", "").replace(".mp4", "").split('.')[0])  # Extract part number
+            return int(filename.replace("part", "").replace(".mp4", "").split('.')[0]) # استخراج الرقم وتحويله إلى عدد صحيح
         except ValueError:
-            return 0  # In case of unexpected filenames
+            return 0  # في حالة وجود أسماء ملفات غير متوقعة
 
     part_files = [f for f in os.listdir(output_dir) if f.startswith("part") and f.endswith(".mp4")]
-    media_group = []  # List to store media for the album
-    part_thumb_paths = []  # To track thumbnail paths for cleanup
-
-    for part_file in sorted(part_files, key=get_part_number):  # Sort parts by number
+    for part_file in sorted(part_files, key=get_part_number): # استخدام مفتاح ترتيب مخصص هنا
         part_path = os.path.join(output_dir, part_file)
+        part_thumb_path = None
         try:
-            # Extract metadata for the part
+            # استخراج بيانات الجزء من الفيديو للحصول على المدة الصحيحة
             part_metadata = video_metadata(part_path)
             part_duration = part_metadata['duration']
             part_width = part_metadata['width']
             part_height = part_metadata['height']
 
-            # Generate thumbnail for the part
             part_thumb_path = await screenshot(part_path, part_duration, sender)
-            part_thumb_paths.append(part_thumb_path)
 
-            # Add the part to the media group
-            media_group.append(
-                {
-                    "type": "video",
-                    "media": part_path,
-                    "caption": f"{caption} \n\n **{part_file}**" if not media_group else None,  # Caption only for the first part
-                    "thumb": part_thumb_path,
-                    "width": part_width,
-                    "height": part_height,
-                    "duration": part_duration,
-                }
-            )
-
-        except Exception as e:
-            await app.edit_message_text(sender, edit_id, f"Error processing {part_file}: {e}")
-            continue
-
-    # Send the media group as an album
-    try:
-        # Split into chunks of 10 if necessary
-        for i in range(0, len(media_group), 10):
-            album_chunk = media_group[i:i + 10]
-            safe_repo = await app.send_media_group(
+            safe_repo = await app.send_video(
                 chat_id=sender,
-                media=album_chunk
-            )
+                video=part_path,
+                caption=f"{caption} \n\n **{part_file}**",
+                supports_streaming=True,
+                height=part_height,
+                width=part_width,
+                duration=part_duration,
+                thumb=part_thumb_path,
+                progress=progress_bar,
+                progress_args=(
+                f'**__Uploading {part_file}...__**\n',
+                edit_id,
+                time.time()
+                )
+               )
             if msg.pinned_message:
                 try:
-                    await safe_repo[0].pin(both_sides=True)  # Pin the first message in the album
+                    await safe_repo.pin(both_sides=True)
                 except Exception as e:
-                    await safe_repo[0].pin()
+                    await safe_repo.pin()
+            await safe_repo.copy(log_group)
+        except:
+            await app.edit_message_text(sender, edit_id, f"Error uploading {part_file}. Bot might not be admin in the chat...")
+        finally:
+            os.remove(part_path)
+            if part_thumb_path and os.path.exists(part_thumb_path):
+                os.remove(part_thumb_path)
 
-            # Copy the album to the log group
-            await app.copy_media_group(chat_id=log_group, from_chat_id=sender, message_id=safe_repo[0].id)
-
-    except Exception as e:
-        await app.edit_message_text(sender, edit_id, f"Error sending album: {e}")
-
-    finally:
-        # Clean up temporary files
-        for part_file in part_files:
-            part_path = os.path.join(output_dir, part_file)
-            if os.path.exists(part_path):
-                os.remove(part_path)
-
-        for thumb_path in part_thumb_paths:
-            if thumb_path and os.path.exists(thumb_path):
-                os.remove(thumb_path)
 async def get_msg(userbot, sender, edit_id, msg_link, i, message, is_batch_mode=False): # إضافة الوسيط الجديد is_batch_mode بقيمة افتراضية False
     edit = ""
     chat = ""
@@ -660,7 +636,7 @@ async def save_thumbnail(event):
 @gf.on(events.NewMessage(func=lambda e: e.sender_id in pending_video_splits))
 async def handle_split_reply(event):
     user_id = event.sender_id
-    if not event.reply_to_msg_id:  # Ensure it's a direct reply to the bot's question
+    if not event.reply_to_msg_id: # Ensure it's a direct reply to the bot's question
         return
 
     if event.reply_to_msg_id:
@@ -670,9 +646,7 @@ async def handle_split_reply(event):
                 await event.respond("Please enter a positive number of parts.")
                 return
 
-            # حذف رسالة المستخدم التي تحتوي على عدد الأجزاء
-
-            split_data = pending_video_splits.pop(user_id)  # Get the stored data and remove from pending
+            split_data = pending_video_splits.pop(user_id) # Get the stored data and remove from pending
             file_path = split_data['file_path']
             edit_id = split_data['edit_id']
             sender = split_data['sender']
@@ -681,31 +655,28 @@ async def handle_split_reply(event):
             width = split_data['width']
             height = split_data['height']
             duration = split_data['duration']
-            original_thumb_path = split_data['thumb_path']  # تم التغيير هنا لاستخدام original_thumb_path
+            original_thumb_path = split_data['thumb_path'] # تم التغيير هنا لاستخدام original_thumb_path
             log_group = split_data['log_group']
             chatx = split_data['chatx']
 
             await app.edit_message_text(sender, edit_id, f"Splitting video into {num_parts} parts...")
-            temp_dir = tempfile.TemporaryDirectory()  # Create temp dir for parts
+            temp_dir = tempfile.TemporaryDirectory() # Create temp dir for parts
             try:
                 await split_video_ffmpeg(file_path, num_parts, temp_dir.name)
                 await app.edit_message_text(sender, edit_id, "Uploading video parts...")
-                await upload_video_parts(app, sender, edit_id, temp_dir.name, msg, caption, width, height, duration, original_thumb_path, log_group)  # تم التغيير هنا لتمرير original_thumb_path
-                # تعديل: حفظ رسالة النجاح وحذفها بعد 10 ثواني
-                success_msg = await app.edit_message_text(sender, edit_id, "Video parts uploaded successfully!")
-                await asyncio.sleep(10)
-                await success_msg.delete()
+                await upload_video_parts(app, sender, edit_id, temp_dir.name, msg, caption, width, height, duration, original_thumb_path, log_group) # تم التغيير هنا لتمرير original_thumb_path
+                await app.edit_message_text(sender, edit_id, "Video parts uploaded successfully!")
             except Exception as split_err:
                 await app.edit_message_text(sender, edit_id, f"Error splitting or uploading video parts: {split_err}")
             finally:
-                temp_dir.cleanup()  # Cleanup temp directory
-                os.remove(file_path)  # Remove original file
-                await asyncio.sleep(2)
-                await event.delete()
+                temp_dir.cleanup() # Cleanup temp directory
+                os.remove(file_path) # Remove original file
+
         except ValueError:
             await event.respond("Invalid number of parts. Please reply with a number.")
         except KeyError:
-            pass  # Ignore if no pending split request for this user (might be timed out or cancelled)
+            pass # Ignore if no pending split request for this user (might be timed out or cancelled)
+
 
 @gf.on(events.NewMessage)
 async def handle_user_input(event):
