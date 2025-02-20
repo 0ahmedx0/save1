@@ -86,9 +86,12 @@ async def upload_video_parts(app, sender, edit_id, output_dir, msg, caption, wid
             part_height = part_metadata['height']
 
             # Capture thumbnail for the part
-            thumb_path = await screenshot(part_path, part_duration / 2, sender)  # Take screenshot at the middle of the part
+            thumb_path = await screenshot(part_path, part_duration, sender)  # Take screenshot at the middle of the part
             thumb_paths.append(thumb_path)
             
+            # Debugging: Print thumbnail path to ensure it's captured correctly
+            print(f"Thumbnail for {part_file}: {thumb_path}")
+
             media = InputMediaVideo(
                 part_path,
                 supports_streaming=True,
@@ -126,7 +129,6 @@ async def upload_video_parts(app, sender, edit_id, output_dir, msg, caption, wid
             for thumb_path in thumb_paths:
                 if thumb_path and os.path.exists(thumb_path):
                     os.remove(thumb_path)
-
 async def get_msg(userbot, sender, edit_id, msg_link, i, message, is_batch_mode=False): # إضافة الوسيط الجديد is_batch_mode بقيمة افتراضية False
     edit = ""
     chat = ""
