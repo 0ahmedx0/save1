@@ -14,22 +14,14 @@ from datetime import datetime as dt
 import asyncio, subprocess, re, os, time
 
 
-def sanitize_filename(filename):
-    """
-    Cleans up a filename by removing or replacing invalid characters.
-    """
-    # Replace invalid characters with underscores
-    return re.sub(r'[^\w\-_.]', '_', filename)
-def get_safe_timestamp(duration):
-    """Returns a safe timestamp to capture a thumbnail."""
-    return max(5, min(duration - 5, duration / 2))
 
 async def chk_user(message, user_id):
     user = await premium_users()
     if user_id in user or user_id in OWNER_ID:
         return 0
     else:
-        return 0
+        await message.reply_text("Purchase premium to do the tasks...")
+        return 1
 
 
 
@@ -44,12 +36,14 @@ async def subscribe(app, message):
       try:
          user = await app.get_chat_member(update_channel, message.from_user.id)
          if user.status == "kicked":
-            return 0
+            await message.reply_text("You are Banned. Contact -- @safe_repo")
+            return 1
       except UserNotParticipant:
          await message.reply_photo(photo="https://graph.org/file/d44f024a08ded19452152.jpg",caption=script.FORCE_MSG.format(message.from_user.mention), reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Join Now...", url=f"{url}")]]))
-         return 0
+         return 1
       except Exception:
-         return 0
+         await message.reply_text("Something Went Wrong. Contact us @safe_repo...")
+         return 1
 
 
 
@@ -227,27 +221,29 @@ def hhmmss(seconds):
     return time.strftime('%H:%M:%S',time.gmtime(seconds))
 
 async def screenshot(video, duration, sender):
-    # Generate a unique thumbnail path for each part
-    time_stamp = hhmmss(int(duration) / 2)
-    out = f"{sender}_thumb_{time_stamp}.jpg"  # Unique name for each thumbnail
-
-    cmd = [
-        "ffmpeg",
-        "-ss", f"{time_stamp}",
-        "-i", f"{video}",
-        "-frames:v", "1",
-        f"{out}",
-        "-y"
-    ]
-
+    if os.path.exists(f'{sender}.jpg'):
+        return f'{sender}.jpg'
+    time_stamp = hhmmss(int(duration)/2)
+    out = dt.now().isoformat("_", "seconds") + ".jpg"
+    cmd = ["ffmpeg",
+           "-ss",
+           f"{time_stamp}", 
+           "-i",
+           f"{video}",
+           "-frames:v",
+           "1", 
+           f"{out}",
+           "-y"
+          ]
     process = await asyncio.create_subprocess_exec(
         *cmd,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE
     )
     stdout, stderr = await process.communicate()
-
+    x = stderr.decode().strip()
+    y = stdout.decode().strip()
     if os.path.isfile(out):
         return out
     else:
-        return None
+        None  
