@@ -56,6 +56,7 @@ async def split_video_ffmpeg(input_file, num_parts, output_dir):
 
 async def upload_video_parts(app, sender, edit_id, output_dir, msg, caption, width, height, duration, original_thumb_path, log_group):
     """Uploads video parts as albums. If parts exceed 10, they are split into multiple albums."""
+    
     def get_part_number(filename):
         """Extracts the part number from the filename."""
         try:
@@ -76,6 +77,7 @@ async def upload_video_parts(app, sender, edit_id, output_dir, msg, caption, wid
     for batch in chunk_list(sorted_parts, 10):
         media_group = []
         thumb_paths = []  # To store thumbnail paths for cleanup
+        
         for idx, part_file in enumerate(batch):
             part_path = os.path.join(output_dir, part_file)
             part_metadata = video_metadata(part_path)
@@ -84,7 +86,7 @@ async def upload_video_parts(app, sender, edit_id, output_dir, msg, caption, wid
             part_height = part_metadata['height']
 
             # Capture thumbnail for the part
-            thumb_path = await screenshot(part_path, part_duration, sender)
+            thumb_path = await screenshot(part_path, part_duration / 2, sender)  # Take screenshot at the middle of the part
             thumb_paths.append(thumb_path)
             
             media = InputMediaVideo(
@@ -93,11 +95,13 @@ async def upload_video_parts(app, sender, edit_id, output_dir, msg, caption, wid
                 height=part_height,
                 width=part_width,
                 duration=part_duration,
-                thumb=thumb_path
+                thumb=thumb_path  # Assign the thumbnail specific to this part
             )
+            
             # Add caption to the first media in the batch if provided
             if idx == 0 and caption:
                 media.caption = f"{caption} \n\n **{part_file}**"
+            
             media_group.append(media)
         
         try:
