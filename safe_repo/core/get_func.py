@@ -12,6 +12,7 @@ import pymongo
 from pyrogram import filters
 from pyrogram.errors import ChannelBanned, ChannelInvalid, ChannelPrivate, ChatIdInvalid, ChatInvalid, PeerIdInvalid
 from pyrogram.enums import MessageMediaType
+from pyrogram.types import InputMediaVideo  # تأكد من وجود هذا الاستيراد
 from safe_repo.core.func import progress_bar, video_metadata, screenshot
 from safe_repo.core.mongo import db
 from pyrogram.types import Message
@@ -53,7 +54,7 @@ async def split_video_ffmpeg(input_file, num_parts, output_dir):
 
         # يمكنك هنا طباعة أو استخدام `part_duration` للتأكد من أنها صحيحة
 
-from pyrogram.types import InputMediaVideo  # تأكد من وجود هذا الاستيراد
+
 
 async def upload_video_parts(app, sender, edit_id, output_dir, msg, caption, width, height, duration, original_thumb_path, log_group):
     """Uploads video parts from the specified directory as an album."""
