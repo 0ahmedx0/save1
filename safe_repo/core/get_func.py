@@ -666,7 +666,6 @@ async def handle_split_reply(event):
                 return
 
             # حذف رسالة المستخدم التي تحتوي على عدد الأجزاء
-            await event.delete()
 
             split_data = pending_video_splits.pop(user_id)  # Get the stored data and remove from pending
             file_path = split_data['file_path']
@@ -696,7 +695,8 @@ async def handle_split_reply(event):
             finally:
                 temp_dir.cleanup()  # Cleanup temp directory
                 os.remove(file_path)  # Remove original file
-
+                await asyncio.sleep(2)
+                await event.delete()
         except ValueError:
             await event.respond("Invalid number of parts. Please reply with a number.")
         except KeyError:
