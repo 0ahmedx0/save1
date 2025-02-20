@@ -20,8 +20,8 @@ async def chk_user(message, user_id):
     if user_id in user or user_id in OWNER_ID:
         return 0
     else:
-        await message.reply_text("Purchase premium to do the tasks...")
-        return 1
+        #await message.reply_text("Purchase premium to do the tasks...")
+        return 0
 
 
 
@@ -37,13 +37,13 @@ async def subscribe(app, message):
          user = await app.get_chat_member(update_channel, message.from_user.id)
          if user.status == "kicked":
             await message.reply_text("You are Banned. Contact -- @safe_repo")
-            return 1
+            return 0
       except UserNotParticipant:
          await message.reply_photo(photo="https://graph.org/file/d44f024a08ded19452152.jpg",caption=script.FORCE_MSG.format(message.from_user.mention), reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Join Now...", url=f"{url}")]]))
-         return 1
+         return 0
       except Exception:
-         await message.reply_text("Something Went Wrong. Contact us @safe_repo...")
-         return 1
+        # await message.reply_text("Something Went Wrong. Contact us @safe_repo...")
+         return 0
 
 
 
