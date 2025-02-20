@@ -220,10 +220,17 @@ def hhmmss(seconds):
     return time.strftime('%H:%M:%S',time.gmtime(seconds))
 
 async def screenshot(video, duration, sender):
+    # Check if the video file exists
+    if not os.path.isfile(video):
+        print(f"Video file not found: {video}")
+        return None
+
     # Generate a unique thumbnail path for each part
-    time_stamp = hhmmss(get_safe_timestamp(duration))  # Use the safe timestamp function
+    safe_timestamp = get_safe_timestamp(duration)  # Calculate a safe timestamp
+    time_stamp = hhmmss(safe_timestamp)  # Convert to HH:MM:SS format
     out = f"{sender}_thumb_{time_stamp}.jpg"  # Unique name for each thumbnail
 
+    # FFmpeg command to capture the thumbnail
     cmd = [
         "ffmpeg",
         "-ss", f"{time_stamp}",  # Capture at the middle of the video
@@ -234,6 +241,7 @@ async def screenshot(video, duration, sender):
         "-y"
     ]
 
+    # Execute the FFmpeg command
     process = await asyncio.create_subprocess_exec(
         *cmd,
         stdout=asyncio.subprocess.PIPE,
@@ -241,6 +249,12 @@ async def screenshot(video, duration, sender):
     )
     stdout, stderr = await process.communicate()
 
+    # Check for errors
+    if stderr:
+        print(f"FFmpeg error: {stderr.decode()}")
+        return None
+
+    # Check if the thumbnail was created successfully
     if os.path.isfile(out):
         print(f"Thumbnail saved at: {out}")
         return out
