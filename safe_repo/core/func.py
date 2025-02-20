@@ -218,29 +218,27 @@ def hhmmss(seconds):
     return time.strftime('%H:%M:%S',time.gmtime(seconds))
 
 async def screenshot(video, duration, sender):
-    if os.path.exists(f'{sender}.jpg'):
-        return f'{sender}.jpg'
-    time_stamp = hhmmss(int(duration)/2)
-    out = dt.now().isoformat("_", "seconds") + ".jpg"
-    cmd = ["ffmpeg",
-           "-ss",
-           f"{time_stamp}", 
-           "-i",
-           f"{video}",
-           "-frames:v",
-           "1", 
-           f"{out}",
-           "-y"
-          ]
+    # Generate a unique thumbnail path for each part
+    time_stamp = hhmmss(int(duration) / 2)
+    out = f"{sender}_thumb_{time_stamp}.jpg"  # Unique name for each thumbnail
+
+    cmd = [
+        "ffmpeg",
+        "-ss", f"{time_stamp}",
+        "-i", f"{video}",
+        "-frames:v", "1",
+        f"{out}",
+        "-y"
+    ]
+
     process = await asyncio.create_subprocess_exec(
         *cmd,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE
     )
     stdout, stderr = await process.communicate()
-    x = stderr.decode().strip()
-    y = stdout.decode().strip()
+
     if os.path.isfile(out):
         return out
     else:
-        None  
+        return None
