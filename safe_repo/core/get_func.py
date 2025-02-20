@@ -19,7 +19,6 @@ import cv2
 from telethon import events, Button
 import re
 import tempfile
-from pyrogram.types import InputMediaVideo
 
 
 def thumbnail(sender):
@@ -53,75 +52,58 @@ async def split_video_ffmpeg(input_file, num_parts, output_dir):
         # يمكنك هنا طباعة أو استخدام part_duration للتأكد من أنها صحيحة
 
 async def upload_video_parts(app, sender, edit_id, output_dir, msg, caption, width, height, duration, original_thumb_path, log_group):
-    """Uploads video parts as albums. If parts exceed 10, they are split into multiple albums."""
+    """Uploads video parts from the specified directory in sequential order."""
     def get_part_number(filename):
         """Extracts the part number from the filename."""
         try:
-            return int(filename.replace("part", "").replace(".mp4", "").split('.')[0])
+            return int(filename.replace("part", "").replace(".mp4", "").split('.')[0])  # استخراج الرقم وتحويله إلى عدد صحيح
         except ValueError:
-            return 0
+            return 0  # في حالة وجود أسماء ملفات غير متوقعة
 
-    def chunk_list(lst, n):
-        """Divides the list into chunks of n items."""
-        for i in range(0, len(lst), n):
-            yield lst[i:i+n]
-
-    # Get sorted list of part files
     part_files = [f for f in os.listdir(output_dir) if f.startswith("part") and f.endswith(".mp4")]
-    sorted_parts = sorted(part_files, key=get_part_number)
-
-    # Process in batches of 10 files per album
-    for batch in chunk_list(sorted_parts, 10):
-        media_group = []
-        thumb_paths = []  # To store thumbnail paths for cleanup
-        for idx, part_file in enumerate(batch):
-            part_path = os.path.join(output_dir, part_file)
+    for part_file in sorted(part_files, key=get_part_number):  # استخدام مفتاح ترتيب مخصص هنا
+        part_path = os.path.join(output_dir, part_file)
+        part_thumb_path = None
+        try:
+            # استخراج بيانات الجزء من الفيديو للحصول على المدة الصحيحة
             part_metadata = video_metadata(part_path)
             part_duration = part_metadata['duration']
             part_width = part_metadata['width']
             part_height = part_metadata['height']
 
-            # Capture thumbnail for the part
-            thumb_path = await screenshot(part_path, part_duration, sender)
-            thumb_paths.append(thumb_path)
-            
-            media = InputMediaVideo(
-                part_path,
+            part_thumb_path = await screenshot(part_path, part_duration, sender)
+
+            safe_repo = await app.send_video(
+                chat_id=sender,
+                video=part_path,
+                caption=f"{caption} \n\n **{part_file}**",
                 supports_streaming=True,
                 height=part_height,
                 width=part_width,
                 duration=part_duration,
-                thumb=thumb_path
-            )
-            # Add caption to the first media in the batch if provided
-            if idx == 0 and caption:
-                media.caption = f"{caption} \n\n **{part_file}**"
-            media_group.append(media)
-        
-        try:
-            sent_msgs = await app.send_media_group(
-                chat_id=sender,
-                media=media_group
+                thumb=part_thumb_path,
+                progress=progress_bar,
+                progress_args=(
+                    f'**__Uploading {part_file}...__**\n',
+                    edit_id,
+                    time.time()
+                )
             )
             if msg.pinned_message:
                 try:
-                    await sent_msgs[0].pin(both_sides=True)
-                except Exception:
-                    await sent_msgs[0].pin()
+                    await safe_repo.pin(both_sides=True)
+                except Exception as e:
+                    await safe_repo.pin()
+            # تم تعطيل النسخ إلى LOG_GROUP
+            await safe_repo.copy(LOG_GROUP)
             await asyncio.sleep(3)
-        except Exception as e:
-            await app.edit_message_text(sender, edit_id, f"Error uploading album for parts {batch}: {str(e)}")
+        except:
+            await app.edit_message_text(sender, edit_id, f"Error uploading {part_file}. Bot might not be admin in the chat...")
         finally:
-            # Cleanup: remove part files and thumbnails
-            for part_file in batch:
-                part_path = os.path.join(output_dir, part_file)
-                if os.path.exists(part_path):
-                    os.remove(part_path)
-            for thumb_path in thumb_paths:
-                if thumb_path and os.path.exists(thumb_path):
-                    os.remove(thumb_path)
+            os.remove(part_path)
+            if part_thumb_path and os.path.exists(part_thumb_path):
+                os.remove(part_thumb_path)
 
-                
 async def get_msg(userbot, sender, edit_id, msg_link, i, message, is_batch_mode=False):
     edit = ""
     chat = ""
@@ -158,7 +140,7 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message, is_batch_mode=
                         except Exception:
                             await safe_repo.pin()
                     
-                   # await safe_repo.copy(LOG_GROUP)
+                    await safe_repo.copy(LOG_GROUP)
                     await edit.delete()
                     return
             
@@ -173,7 +155,7 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message, is_batch_mode=
                     except Exception:
                         await safe_repo.pin()
                 
-               # await safe_repo.copy(LOG_GROUP)
+                await safe_repo.copy(LOG_GROUP)
                 await edit.delete()
                 return
 
@@ -238,7 +220,7 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message, is_batch_mode=
                         except Exception:
                             await safe_repo.pin()
                     
-                    # await safe_repo.copy(LOG_GROUP)
+                    await safe_repo.copy(LOG_GROUP)
                     await edit.delete()
                     os.remove(file)
                     return
@@ -289,7 +271,7 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message, is_batch_mode=
                             except Exception:
                                 await safe_repo.pin()
                         
-                      #  await safe_repo.copy(LOG_GROUP)
+                        await safe_repo.copy(LOG_GROUP)
                     except Exception:
                         await app.edit_message_text(sender, edit_id, 
                             "The bot is not an admin in the specified chat..."
@@ -333,7 +315,7 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message, is_batch_mode=
                     except Exception:
                         await safe_repo.pin()
                 
-              #  await safe_repo.copy(LOG_GROUP)
+                  await safe_repo.copy(LOG_GROUP)
 
             else:
                 thumb_path = thumbnail(chatx)
@@ -378,7 +360,7 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message, is_batch_mode=
                         except Exception:
                             await safe_repo.pin()
                     
-                    # await safe_repo.copy(LOG_GROUP)
+                     await safe_repo.copy(LOG_GROUP)
                 except Exception:
                     await app.edit_message_text(sender, edit_id, 
                         "The bot is not an admin in the specified chat."
@@ -441,10 +423,10 @@ async def copy_message_with_chat_id(client, sender, chat_id, message_id):
             result = await client.copy_message(target_chat_id, chat_id, message_id)
 
         # تم تعطيل النسخ إلى LOG_GROUP
-        # try:
-        #     await result.copy(LOG_GROUP)
-        # except Exception:
-        #     pass
+            try:
+             await result.copy(LOG_GROUP)
+             except Exception:
+               pass
 
         if msg.pinned_message:
             try:
