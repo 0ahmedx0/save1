@@ -315,7 +315,7 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message, is_batch_mode=
                     except Exception:
                         await safe_repo.pin()
                 
-                  await safe_repo.copy(LOG_GROUP)
+                    await safe_repo.copy(LOG_GROUP)
 
             else:
                 thumb_path = thumbnail(chatx)
@@ -360,7 +360,7 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message, is_batch_mode=
                         except Exception:
                             await safe_repo.pin()
                     
-                     await safe_repo.copy(LOG_GROUP)
+                        await safe_repo.copy(LOG_GROUP)
                 except Exception:
                     await app.edit_message_text(sender, edit_id, 
                         "The bot is not an admin in the specified chat."
@@ -425,7 +425,7 @@ async def copy_message_with_chat_id(client, sender, chat_id, message_id):
         # تم تعطيل النسخ إلى LOG_GROUP
             try:
              await result.copy(LOG_GROUP)
-             except Exception:
+            except Exception:
                pass
 
         if msg.pinned_message:
