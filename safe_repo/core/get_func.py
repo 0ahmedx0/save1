@@ -705,12 +705,16 @@ async def handle_split_reply(event):
                 # الحصول على رقم رسالة المستخدم بطريقة متوافقة مع Telethon
                 user_msg_id = getattr(event, "message_id", event.id)
                 try:
+                    await asyncio.sleep(5)
                     await app.delete_messages(sender, edit_id, revoke=True)
                 except Exception as del_bot_msg_err:
+                    await asyncio.sleep(5)
                     print(f"Error deleting bot's message: {del_bot_msg_err}")
                 try:
+                    await asyncio.sleep(5)
                     await app.delete_messages(sender, user_msg_id, revoke=True)
                 except Exception as del_user_msg_err:
+                    await asyncio.sleep(5)
                     print(f"Error deleting user's message: {del_user_msg_err}")
                 
             except Exception as split_err:
