@@ -110,7 +110,7 @@ async def upload_video_parts(app, sender, edit_id, output_dir, msg, caption, wid
                         await safe_repo.pin(both_sides=True)
                     except Exception as e:
                         await safe_repo.pin()
-                await safe_repo.copy(log_group)
+               # await safe_repo.copy(log_group)
         else:
             await app.edit_message_text(sender, edit_id, "No video parts found to upload.")
     except Exception as e:
@@ -162,7 +162,7 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message, is_batch_mode=
                             await safe_repo.pin(both_sides=True)
                         except Exception as e:
                             await safe_repo.pin()
-                    await safe_repo.copy(LOG_GROUP)
+                    #await safe_repo.copy(LOG_GROUP)
                     await edit.delete()
                     return
             if not msg.media:
@@ -175,7 +175,7 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message, is_batch_mode=
                             await safe_repo.pin(both_sides=True)
                         except Exception as e:
                             await safe_repo.pin()
-                    await safe_repo.copy(LOG_GROUP)
+                    #await safe_repo.copy(LOG_GROUP)
                     await edit.delete()
                     return
 
@@ -230,7 +230,7 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message, is_batch_mode=
                             await safe_repo.pin(both_sides=True)
                         except Exception as e:
                             await safe_repo.pin()
-                    await safe_repo.copy(LOG_GROUP)
+                   #await safe_repo.copy(LOG_GROUP)
                     await edit.delete()
                     os.remove(file) # Remove file after direct upload
                     return
@@ -277,7 +277,7 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message, is_batch_mode=
                                 await safe_repo.pin(both_sides=True)
                             except Exception as e:
                                 await safe_repo.pin()
-                        await safe_repo.copy(LOG_GROUP)
+                        #await safe_repo.copy(LOG_GROUP)
                     except:
                         await app.edit_message_text(sender, edit_id, "The bot is not an admin in the specified chat...")
                     os.remove(file)
@@ -310,7 +310,7 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message, is_batch_mode=
                         await safe_repo.pin(both_sides=True)
                     except Exception as e:
                         await safe_repo.pin()
-                await safe_repo.copy(LOG_GROUP)
+                #await safe_repo.copy(LOG_GROUP)
             else:
                 thumb_path = thumbnail(chatx)
                 delete_words = load_delete_words(sender)
@@ -350,7 +350,7 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message, is_batch_mode=
                         except Exception as e:
                             await safe_repo.pin()
 
-                    await safe_repo.copy(LOG_GROUP)
+                    #await safe_repo.copy(LOG_GROUP)
                 except:
                     await app.edit_message_text(sender, edit_id, "The bot is not an admin in the specified chat.")
 
@@ -658,9 +658,10 @@ async def save_thumbnail(event):
     pending_photos.pop(user_id, None)
 
 @gf.on(events.NewMessage(func=lambda e: e.sender_id in pending_video_splits))
+
 async def handle_split_reply(event):
     user_id = event.sender_id
-    if not event.reply_to_msg_id: # Ensure it's a direct reply to the bot's question
+    if not event.reply_to_msg_id:  # التأكد من أن الرد مباشر على رسالة البوت
         return
 
     if event.reply_to_msg_id:
@@ -670,7 +671,7 @@ async def handle_split_reply(event):
                 await event.respond("Please enter a positive number of parts.")
                 return
 
-            split_data = pending_video_splits.pop(user_id) # Get the stored data and remove from pending
+            split_data = pending_video_splits.pop(user_id)  # الحصول على البيانات المخزنة وإزالتها من الانتظار
             file_path = split_data['file_path']
             edit_id = split_data['edit_id']
             sender = split_data['sender']
@@ -679,27 +680,33 @@ async def handle_split_reply(event):
             width = split_data['width']
             height = split_data['height']
             duration = split_data['duration']
-            original_thumb_path = split_data['thumb_path'] # تم التغيير هنا لاستخدام original_thumb_path
+            original_thumb_path = split_data['thumb_path']  # تم التغيير هنا لاستخدام original_thumb_path
             log_group = split_data['log_group']
             chatx = split_data['chatx']
 
             await app.edit_message_text(sender, edit_id, f"Splitting video into {num_parts} parts...")
-            temp_dir = tempfile.TemporaryDirectory() # Create temp dir for parts
+            temp_dir = tempfile.TemporaryDirectory()  # إنشاء مجلد مؤقت للأجزاء
             try:
                 await split_video_ffmpeg(file_path, num_parts, temp_dir.name)
                 await app.edit_message_text(sender, edit_id, "Uploading video parts...")
-                await upload_video_parts(app, sender, edit_id, temp_dir.name, msg, caption, width, height, duration, original_thumb_path, log_group) # تم التغيير هنا لتمرير original_thumb_path
+                await upload_video_parts(app, sender, edit_id, temp_dir.name, msg, caption, width, height, duration, original_thumb_path, log_group)  # تم التغيير هنا لتمرير original_thumb_path
                 await app.edit_message_text(sender, edit_id, "Video parts uploaded successfully!")
+                
+                # الانتظار لمدة 5 ثوانٍ قبل حذف رسالة البوت ورسالة المستخدم
+                await asyncio.sleep(5)
+                await app.delete_messages(sender, edit_id, revoke=True)
+                await app.delete_messages(sender, event.message_id, revoke=True)
+                
             except Exception as split_err:
                 await app.edit_message_text(sender, edit_id, f"Error splitting or uploading video parts: {split_err}")
             finally:
-                temp_dir.cleanup() # Cleanup temp directory
-                os.remove(file_path) # Remove original file
+                temp_dir.cleanup()  # تنظيف المجلد المؤقت
+                os.remove(file_path)  # حذف الملف الأصلي
 
         except ValueError:
             await event.respond("Invalid number of parts. Please reply with a number.")
         except KeyError:
-            pass # Ignore if no pending split request for this user (might be timed out or cancelled)
+            pass  # تجاهل حال عدم وجود طلب تقسيم معلق لهذا المستخدم (ربما انتهت مدته أو تم إلغاؤه)
 
 
 @gf.on(events.NewMessage)
