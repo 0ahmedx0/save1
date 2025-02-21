@@ -31,6 +31,10 @@ pending_video_splits = {}
 
 async def split_video_ffmpeg(input_file, num_parts, output_dir):
     """Splits the video into specified number of parts using ffmpeg."""
+     if not input_file.lower().endswith(".mp4"):
+        new_input_file = os.path.splitext(input_file)[0] + ".mp4"
+        os.rename(input_file, new_input_file)
+        input_file = new_input_file 
     metadata = video_metadata(input_file)
     duration_total = metadata['duration']
     split_duration = duration_total / num_parts
