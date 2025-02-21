@@ -31,33 +31,46 @@ pending_video_splits = {}
 
 async def split_video_ffmpeg(input_file, num_parts, output_dir):
     """Splits the video into specified number of parts using ffmpeg."""
-    if not input_file.lower().endswith(".mp4"):
-        new_input_file = os.path.splitext(input_file)[0] + ".mp4"
-        os.rename(input_file, new_input_file)
-        input_file = new_input_file 
+    
+    # التحقق من صيغة الفيديو وتحويله إلى mp4 إذا لم يكن كذلك
+    if os.path.splitext(input_file)[1].lower() != '.mp4':
+        print("الفيديو ليس بصيغة mp4، جاري التحويل...")
+        # إنشاء اسم جديد للملف المحول
+        converted_file = os.path.splitext(input_file)[0] + "_converted.mp4"
+        convert_command = [
+            "ffmpeg",
+            "-i", input_file,
+            "-c:v", "libx264",  # ترميز الفيديو باستخدام H.264
+            "-c:a", "aac",      # ترميز الصوت باستخدام AAC
+            "-strict", "experimental",
+            converted_file
+        ]
+        subprocess.run(convert_command, check=True, capture_output=True)
+        print("تم تحويل الفيديو إلى صيغة mp4.")
+        input_file = converted_file  # تحديث متغير الملف ليشير إلى الملف المحول
+
+    # الحصول على بيانات الفيديو مثل المدة الإجمالية
     metadata = video_metadata(input_file)
     duration_total = metadata['duration']
     split_duration = duration_total / num_parts
 
     for i in range(num_parts):
         start_time = i * split_duration
-        output_file = os.path.join(output_dir, f"part{i+1}.mp4") # Assuming mp4 output, adjust if needed
+        output_file = os.path.join(output_dir, f"part{i+1}.mp4")  # إخراج بصيغة mp4
         command = [
             "ffmpeg",
             "-i", input_file,
             "-ss", str(start_time),
             "-t", str(split_duration),
-            "-c", "copy",  # Copy codec for faster splitting, re-encode if needed for compatibility
+            "-c", "copy",  # نسخ الترميزات لتقسيم أسرع دون إعادة ترميز
             output_file
         ]
-        subprocess.run(command, check=True, capture_output=True) # capture_output=True for error handling in future
+        subprocess.run(command, check=True, capture_output=True)
 
-        # تحديث بيانات الفيديو بعد التقسيم للحصول على المدة الصحيحة للجزء
+        # تحديث بيانات الجزء المُنتج للتأكد من صحة المدة
         part_metadata = video_metadata(output_file)
         part_duration = part_metadata['duration']
-
-        # يمكنك هنا طباعة أو استخدام `part_duration` للتأكد من أنها صحيحة
-
+        # يمكن هنا طباعة أو استخدام part_duration حسب الحاجة
 
 
 async def upload_video_parts(app, sender, edit_id, output_dir, msg, caption, width, height, duration, original_thumb_path, log_group):
