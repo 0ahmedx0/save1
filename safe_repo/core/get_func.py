@@ -9,6 +9,8 @@ import requests
 from safe_repo import app
 from safe_repo import sex as gf
 import pymongo
+import math
+import uuid
 from pyrogram import filters
 from pyrogram.errors import ChannelBanned, ChannelInvalid, ChannelPrivate, ChatIdInvalid, ChatInvalid, PeerIdInvalid
 from pyrogram.enums import MessageMediaType
@@ -52,9 +54,8 @@ async def split_video_ffmpeg(input_file, num_parts, output_dir):
         part_metadata = video_metadata(output_file)
         part_duration = part_metadata['duration']
 
-
 async def upload_video_parts(app, sender, edit_id, output_dir, msg, caption, width, height, duration, original_thumb_path, log_group):
-    """Uploads video parts from the specified directory as an album."""
+    """Uploads video parts from the specified directory as evenly distributed albums."""
     
     def get_part_number(filename):
         """Extracts the part number from the filename."""
@@ -80,8 +81,8 @@ async def upload_video_parts(app, sender, edit_id, output_dir, msg, caption, wid
 
             # التقاط الصورة المصغرة لكل جزء
             part_thumb_path = await screenshot(part_path, part_duration, sender)
-            # إنشاء اسم فريد للصورة المصغرة لكل جزء باستخدام اسم الملف
-            unique_thumb_path = os.path.join(output_dir, f"thumb_{os.path.splitext(part_file)[0]}.jpg")
+            # إنشاء اسم فريد للصورة المصغرة لكل جزء باستخدام UUID لضمان التفرد
+            unique_thumb_path = os.path.join(output_dir, f"thumb_{os.path.splitext(part_file)[0]}_{uuid.uuid4().hex}.jpg")
             os.rename(part_thumb_path, unique_thumb_path)
             part_thumb_path = unique_thumb_path
 
@@ -100,15 +101,34 @@ async def upload_video_parts(app, sender, edit_id, output_dir, msg, caption, wid
         except Exception as e:
             await app.edit_message_text(sender, edit_id, f"Error processing {part_file}. Bot might not be admin in the chat...")
 
-    # دالة لتقسيم القائمة إلى مجموعات فرعية لا تتجاوز n عناصر لكل مجموعة
-    def chunk_list(lst, n):
-        for i in range(0, len(lst), n):
-            yield lst[i:i+n]
+    # دالة لتقسيم القائمة إلى مجموعات متساوية بحيث توضع الفائض في الألبوم الأخير
+    def split_evenly(lst, k):
+        n = len(lst)
+        base = n // k
+        rem = n % k
+        chunks = []
+        start = 0
+        for i in range(k):
+            if i < k - 1:
+                size = base
+            else:
+                size = base + rem
+            chunks.append(lst[start:start+size])
+            start += size
+        return chunks
 
-    # رفع الألبومات على دفعات بحيث لا يتجاوز كل ألبوم 10 فيديوهات
+    # تحديد عدد الألبومات المطلوبة:
+    total_parts = len(media_group)
+    if total_parts > 10:
+        album_count = math.ceil(total_parts / 10)
+        groups = split_evenly(media_group, album_count)
+    else:
+        groups = [media_group]
+
+    # رفع الألبومات على دفعات بحيث تكون متوزعة بشكل متساوٍ
     try:
         if media_group:
-            for group in chunk_list(media_group, 10):
+            for group in groups:
                 safe_repos = await app.send_media_group(
                     chat_id=sender,
                     media=group
