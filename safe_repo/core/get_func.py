@@ -685,10 +685,12 @@ async def callback_query_handler(event):
     elif event.data.startswith(b'split_'):
         value = event.data.decode().split('_')[1]
         if value == 'more':
+            await event.edit(event.text, buttons=None)            
             await event.respond("📝 اكتب العدد المطلوب (أكبر من 10) كرد على هذه الرسالة.")
         else:
             num_parts = int(value)
             if user_id in pending_video_splits:
+                await event.edit(event.text, buttons=None)                
                 split_data = pending_video_splits.pop(user_id)
                 file_path = split_data['file_path']
                 edit_id = split_data['edit_id']
