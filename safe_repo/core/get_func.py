@@ -686,8 +686,10 @@ async def callback_query_handler(event):
         value = event.data.decode().split('_')[1]
         if value == 'more':
             await event.respond("📝 اكتب العدد المطلوب (أكبر من 10) كرد على هذه الرسالة.")
+            await event.delete()  # حذف رسالة الأزرار بعد اختيار "أكثر من 10"
         else:
-            num_parts = int(value)
+            num_parts = int(value)ز
+            await event.delete()  # حذف رسالة الأزرار بعد الضغط
             if user_id in pending_video_splits:
                 split_data = pending_video_splits.pop(user_id)
                 file_path = split_data['file_path']
