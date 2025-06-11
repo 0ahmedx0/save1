@@ -289,11 +289,13 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message, is_batch_mode=
                         [Button.inline("10 أجزاء", b'split_10')],
                         [Button.inline("أكثر من 10 📝", b'split_more')]
                     ]
-                    await gf.send_message(
+                    await app.edit_message_text(
                         sender,
+                        edit_id,
                         "💡 الفيديو أطول من دقيقتين، اختر عدد الأجزاء للتقسيم:",
                         buttons=buttons
                     )
+
                     return  # لا تكمل أي شيء بعد هذا
                 else: # إذا كان في وضع الباتش، يتم رفعه كجزء واحد تلقائياً
                     await app.edit_message_text(sender, edit_id, "Video is longer than 2 minutes. Uploading as single part in batch mode...") # تم تعديل الرسالة لتعكس الدقيقتين
