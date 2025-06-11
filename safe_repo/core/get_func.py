@@ -14,8 +14,7 @@ import uuid
 from pyrogram import filters
 from pyrogram.errors import ChannelBanned, ChannelInvalid, ChannelPrivate, ChatIdInvalid, ChatInvalid, PeerIdInvalid
 from pyrogram.enums import MessageMediaType
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton,InputMediaVideo
-
+from pyrogram.types import InputMediaVideo  # تأكد من وجود هذا الاستيراد
 from safe_repo.core.func import progress_bar, video_metadata, screenshot
 from safe_repo.core.mongo import db
 from pyrogram.types import Message
@@ -283,20 +282,18 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message, is_batch_mode=
                         'log_group': LOG_GROUP,
                         'chatx': chatx
                     }
-                    buttons = InlineKeyboardMarkup([
-                        [InlineKeyboardButton("4 أجزاء", callback_data="split_4"), InlineKeyboardButton("5 أجزاء", callback_data="split_5")],
-                        [InlineKeyboardButton("6 أجزاء", callback_data="split_6"), InlineKeyboardButton("7 أجزاء", callback_data="split_7")],
-                        [InlineKeyboardButton("8 أجزاء", callback_data="split_8"), InlineKeyboardButton("9 أجزاء", callback_data="split_9")],
-                        [InlineKeyboardButton("10 أجزاء", callback_data="split_10")],
-                        [InlineKeyboardButton("أكثر من 10 📝", callback_data="split_more")]
-                    ])
-                    await app.edit_message_text(
-                        chat_id=sender,
-                        message_id=edit_id,
-                        text="💡 الفيديو أطول من دقيقتين، اختر عدد الأجزاء للتقسيم:",
-                        reply_markup=buttons
+                    buttons = [
+                        [Button.inline("4 أجزاء", b'split_4'), Button.inline("5 أجزاء", b'split_5')],
+                        [Button.inline("6 أجزاء", b'split_6'), Button.inline("7 أجزاء", b'split_7')],
+                        [Button.inline("8 أجزاء", b'split_8'), Button.inline("9 أجزاء", b'split_9')],
+                        [Button.inline("10 أجزاء", b'split_10')],
+                        [Button.inline("أكثر من 10 📝", b'split_more')]
+                    ]
+                    await gf.send_message(
+                        sender,
+                        "💡 الفيديو أطول من دقيقتين، اختر عدد الأجزاء للتقسيم:",
+                        buttons=buttons
                     )
-
                     return  # لا تكمل أي شيء بعد هذا
                 else: # إذا كان في وضع الباتش، يتم رفعه كجزء واحد تلقائياً
                     await app.edit_message_text(sender, edit_id, "Video is longer than 2 minutes. Uploading as single part in batch mode...") # تم تعديل الرسالة لتعكس الدقيقتين
@@ -629,75 +626,66 @@ pending_photos = {}
 pending_split_reply = {} # To handle user reply for split parts
 
 @gf.on(events.CallbackQuery)
-async def callback_query_handler(client, callback_query):
-    user_id = callback_query.from_user.id  # في Pyrogram
+async def callback_query_handler(event):
+    user_id = event.sender_id
 
-    data = callback_query.data.decode() if isinstance(callback_query.data, bytes) else callback_query.data
-
-    if data == 'setchat':
-        await callback_query.message.reply("Send me the ID of that chat:")
+    if event.data == b'setchat':
+        await event.respond("Send me the ID of that chat:")
         sessions[user_id] = 'setchat'
 
-    elif data == 'setrename':
-        await callback_query.message.reply("Send me the rename tag:")
+    elif event.data == b'setrename':
+        await event.respond("Send me the rename tag:")
         sessions[user_id] = 'setrename'
 
-    elif data == 'setcaption':
-        await callback_query.message.reply("Send me the caption:")
+    elif event.data == b'setcaption':
+        await event.respond("Send me the caption:")
         sessions[user_id] = 'setcaption'
 
-    elif data == 'setreplacement':
-        await callback_query.message.reply("Send me the replacement words in the format: 'WORD(s)' 'REPLACEWORD'")
+    elif event.data == b'setreplacement':
+        await event.respond("Send me the replacement words in the format: 'WORD(s)' 'REPLACEWORD'")
         sessions[user_id] = 'setreplacement'
 
-    elif data == 'addsession':
-        await callback_query.message.reply("This method depreciated ... use /login")
-        # sessions[user_id] = 'addsession'
+    elif event.data == b'addsession':
+        await event.respond("This method depreciated ... use /login")
+        # sessions[user_id] = 'addsession' (If you want to enable session based login just uncomment this and modify response message accordingly)
 
-    elif data == 'delete':
-        await callback_query.message.reply("Send words seperated by space to delete them from caption/filename ...")
+    elif event.data == b'delete':
+        await event.respond("Send words seperated by space to delete them from caption/filename ...")
         sessions[user_id] = 'deleteword'
 
-    elif data == 'logout':
+    elif event.data == b'logout':
         result = mcollection.delete_one({"user_id": user_id})
         if result.deleted_count > 0:
-            await callback_query.message.reply("Logged out and deleted session successfully.")
+            await event.respond("Logged out and deleted session successfully.")
         else:
-            await callback_query.message.reply("You are not logged in")
+            await event.respond("You are not logged in")
 
-    elif data == 'setthumb':
+    elif event.data == b'setthumb':
         pending_photos[user_id] = True
-        await callback_query.message.reply('Please send the photo you want to set as the thumbnail.')
+        await event.respond('Please send the photo you want to set as the thumbnail.')
 
-    elif data == 'reset':
+    elif event.data == b'reset':
         try:
             collection.update_one(
                 {"_id": user_id},
                 {"$unset": {"delete_words": ""}}
             )
-            await callback_query.message.reply("All words have been removed from your delete list.")
+            await event.respond("All words have been removed from your delete list.")
         except Exception as e:
-            await callback_query.message.reply(f"Error clearing delete list: {e}")
+            await event.respond(f"Error clearing delete list: {e}")
 
-    elif data == 'remthumb':
+    elif event.data == b'remthumb':
         try:
             os.remove(f'{user_id}.jpg')
-            await callback_query.message.reply('Thumbnail removed successfully!')
+            await event.respond('Thumbnail removed successfully!')
         except FileNotFoundError:
-            await callback_query.message.reply("No thumbnail found to remove.")
+            await event.respond("No thumbnail found to remove.")
 
-    # ------- أزرار تقسيم الفيديو -------
-    elif data.startswith('split_'):
-        # أولاً: اخفاء الأزرار فقط (reply_markup=None)
-        await client.edit_message_reply_markup(
-            chat_id=callback_query.message.chat.id,
-            message_id=callback_query.message.message_id,
-            reply_markup=None
-        )
-
-        value = data.split('_')[1]
+    # ------- [قسم جديد: معالجة أزرار التقسيم] -------
+    elif event.data.startswith(b'split_'):
+        value = event.data.decode().split('_')[1]
         if value == 'more':
-            await callback_query.message.reply("📝 اكتب العدد المطلوب (أكبر من 10) كرد على هذه الرسالة.")
+            await event.respond("📝 اكتب العدد المطلوب (أكبر من 10) كرد على هذه الرسالة.")
         else:
             num_parts = int(value)
             if user_id in pending_video_splits:
@@ -715,15 +703,15 @@ async def callback_query_handler(client, callback_query):
                 chatx = split_data['chatx']
 
                 import tempfile
-                await client.edit_message_text(sender, edit_id, f"Splitting video into {num_parts} parts...")
+                await app.edit_message_text(sender, edit_id, f"Splitting video into {num_parts} parts...")
                 temp_dir = tempfile.TemporaryDirectory()
                 try:
                     await split_video_ffmpeg(file_path, num_parts, temp_dir.name)
-                    await client.edit_message_text(sender, edit_id, "Uploading video parts...")
-                    await upload_video_parts(client, sender, edit_id, temp_dir.name, msg, caption, width, height, duration, original_thumb_path, log_group)
-                    await client.edit_message_text(sender, edit_id, "Video parts uploaded successfully!")
+                    await app.edit_message_text(sender, edit_id, "Uploading video parts...")
+                    await upload_video_parts(app, sender, edit_id, temp_dir.name, msg, caption, width, height, duration, original_thumb_path, log_group)
+                    await app.edit_message_text(sender, edit_id, "Video parts uploaded successfully!")
                 except Exception as split_err:
-                    await client.edit_message_text(sender, edit_id, f"Error splitting or uploading video parts: {split_err}")
+                    await app.edit_message_text(sender, edit_id, f"Error splitting or uploading video parts: {split_err}")
                 finally:
                     temp_dir.cleanup()
                     os.remove(file_path)
