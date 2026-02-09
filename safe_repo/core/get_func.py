@@ -58,7 +58,7 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message):
                             await safe_repo.pin(both_sides=True)
                         except Exception as e:
                             await safe_repo.pin()
-                    await safe_repo.copy(LOG_GROUP)                  
+                    #await safe_repo.copy(LOG_GROUP)                  
                     await edit.delete()
                     return
             if not msg.media:
@@ -71,7 +71,7 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message):
                             await safe_repo.pin(both_sides=True)
                         except Exception as e:
                             await safe_repo.pin()
-                    await safe_repo.copy(LOG_GROUP)
+                    #await safe_repo.copy(LOG_GROUP)
                     await edit.delete()
                     return
             
@@ -125,7 +125,7 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message):
                             await safe_repo.pin(both_sides=True)
                         except Exception as e:
                             await safe_repo.pin()
-                    await safe_repo.copy(LOG_GROUP)
+                    #await safe_repo.copy(LOG_GROUP)
                     await edit.delete()
                     return
                 
@@ -171,7 +171,7 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message):
                             await safe_repo.pin(both_sides=True)
                         except Exception as e:
                             await safe_repo.pin()
-                    await safe_repo.copy(LOG_GROUP)
+                    #await safe_repo.copy(LOG_GROUP)
                 except:
                     await app.edit_message_text(sender, edit_id, "The bot is not an admin in the specified chat...")
 
@@ -203,7 +203,7 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message):
                         await safe_repo.pin(both_sides=True)
                     except Exception as e:
                         await safe_repo.pin()                
-                await safe_repo.copy(LOG_GROUP)
+                #await safe_repo.copy(LOG_GROUP)
             else:
                 thumb_path = thumbnail(chatx)
                 delete_words = load_delete_words(sender)
@@ -243,7 +243,7 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message):
                         except Exception as e:
                             await safe_repo.pin()
 
-                    await safe_repo.copy(LOG_GROUP)
+                    #await safe_repo.copy(LOG_GROUP)
                 except:
                     await app.edit_message_text(sender, edit_id, "The bot is not an admin in the specified chat.") 
                 
